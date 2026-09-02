@@ -162,30 +162,36 @@ function ToolsPage({ navigate, role }: { navigate: Navigate; role: Role }) {
   const [copied, setCopied] = useState(false);
   const supported = Boolean(document.modelContext?.registerTool);
   const origin = window.location.origin;
+  const availableTools = [
+    { name: 'get-scan-status', mode: 'Read only', copy: 'Returns SCN-1047 status, progress, finding totals, severity counts, and the partial-evidence warning.' },
+    { name: 'start_accessibility_scan', mode: 'Write-shaped stub', copy: 'Returns the queued SCN-1049 response for the public, same-host, 200-page Northstar scan configuration.' },
+    { name: 'list_accessibility_issues', mode: 'Read only', copy: 'Returns the visible 1.1.1, 2.4.7, and 1.4.3 records plus the 14-item human-review gate.' },
+    { name: 'create_draft_acr', mode: 'Write-shaped stub', copy: 'Returns the Northstar Platform 8.4 VPAT 2.5Rev 508 draft response with 27 criteria needing review.' },
+  ];
 
   return <Gate allowed={entitlements[role].webMcp} title="WebMCP requires an enabled paid entitlement" navigate={navigate}>
-    <PageHeading eyebrow="Experimental integration" title="Tools · WebMCP" copy="Allow compatible AI clients to discover and invoke a narrowly scoped easyACR status tool with explicit user control." action={<span className="badge info">Live read-only stub · draft API</span>} />
+    <PageHeading eyebrow="Experimental integration" title="Tools · WebMCP" copy="Allow compatible AI clients to discover and invoke four narrowly scoped easyACR stubs with explicit user control." action={<span className="badge info">4 live stubs · draft API</span>} />
     <div className={`callout ${supported ? 'success' : 'warning'}`}>
-      <strong>{supported ? 'get-scan-status is registered for this document.' : 'WebMCP is not available in this browser.'}</strong>
-      <p>The same-origin tool returns representative SCN-1047 data matching the running report screen. It does not query production services or modify application state.</p>
+      <strong>{supported ? 'Four easyACR tools are registered for this document.' : 'WebMCP is not available in this browser.'}</strong>
+      <p>The same-origin tools return deterministic responses matching the supplied scan, issue-review, and draft-ACR screens. They do not query production services or persist application state.</p>
     </div>
     <div className="grid-3" style={{ marginTop: 20 }}>
-      <article className="card"><h3>Registration</h3><p><Status value={supported ? 'Active' : 'Paused'} /></p><p>{supported ? 'Feature detected · tool registered' : 'Feature detection required'}</p></article>
-      <article className="card"><h3>Authorization boundary</h3><p>Organization: Northstar Labs<br />Scope: scans:read<br />Exposure: same origin only</p></article>
-      <article className="card"><h3>Stub guarantees</h3><p>Read only · deterministic<br />Fictional representative data<br />No credentials or network request</p></article>
+      <article className="card"><h3>Registration</h3><p><Status value={supported ? 'Active' : 'Paused'} /></p><p>{supported ? 'Feature detected · 4 tools registered' : 'Feature detection required'}</p></article>
+      <article className="card"><h3>Authorization boundary</h3><p>Organization: Northstar Labs<br />Scopes: scans:read, scans:write, drafts:write<br />Exposure: same origin only</p></article>
+      <article className="card"><h3>Stub guarantees</h3><p>Deterministic and fictional<br />No credentials or network requests<br />No crawler or draft persistence</p></article>
     </div>
     <section className="section" style={{ paddingBottom: 0 }}>
-      <div className="section-heading"><h2>Available tool</h2><p>The browser mediates discovery and invocation. The tool description and schema are capabilities, not an authorization grant.</p></div>
-      <article className="card">
+      <div className="section-heading"><h2>Available tools</h2><p>The browser mediates discovery and invocation. Tool descriptions and schemas are capabilities, not authorization grants.</p></div>
+      <div className="grid-2">{availableTools.map((tool) => <article className="card" key={tool.name}>
         <TerminalSquare />
-        <h3><code>get-scan-status</code></h3>
-        <p>Returns SCN-1047 status, progress, finding totals, severity counts, and the partial-evidence manual-review warning.</p>
-        <div className="cluster"><span className="badge info">Registered when supported</span><span className="badge warning">Representative stub data</span></div>
-      </article>
+        <h3><code>{tool.name}</code></h3>
+        <p>{tool.copy}</p>
+        <div className="cluster"><span className="badge info">{tool.mode}</span><span className="badge warning">Representative stub data</span></div>
+      </article>)}</div>
     </section>
     <section className="card stack" style={{ marginTop: 24 }}>
       <div className="spaced"><div><h2 style={{ fontSize: '1.5rem' }}>Connection details</h2><p>Current origin and feature-detection result for this document.</p></div><button className="button secondary" onClick={() => { void navigator.clipboard?.writeText(`${origin}/tools`); setCopied(true); }}><Copy size={18} /> Copy tools URL</button></div>
-      <code className="code">{`Mode: WebMCP adapter with read-only stub\nOrigin: ${origin}\nAuthorization: user-mediated, organization-scoped\nStatus: ${supported ? 'get-scan-status registered' : 'feature detection required'}`}</code>
+      <code className="code">{`Mode: WebMCP adapter with deterministic stubs\nOrigin: ${origin}\nAuthorization: user-mediated, organization-scoped\nStatus: ${supported ? '4 tools registered' : 'feature detection required'}`}</code>
     </section>
     {copied && <Toast onClose={() => setCopied(false)}>Tools URL copied.</Toast>}
   </Gate>;

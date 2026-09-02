@@ -24,7 +24,7 @@
 
 ## WebMCP decision
 
-As of September 1, 2026, WebMCP is a [Draft Community Group Report](https://webmachinelearning.github.io/webmcp/), not a stable multi-browser production dependency. The prototype feature-detects `document.modelContext.registerTool()` and registers one same-origin, read-only `get-scan-status` stub when supported. The deterministic response is representative fictional data matching SCN-1047; it performs no network request and changes no state. Production integration still requires server authorization, reviewed specification pinning, privacy/security testing, auditing, and a non-WebMCP fallback.
+As of September 2, 2026, WebMCP is a [Draft Community Group Report](https://webmachinelearning.github.io/webmcp/), not a stable multi-browser production dependency. The prototype feature-detects `document.modelContext.registerTool()` and registers four same-origin stubs when supported: `get-scan-status`, `start_accessibility_scan`, `list_accessibility_issues`, and `create_draft_acr`. Their deterministic responses are representative fictional data matching the supplied easyACR screens. None performs a network request; the two write-shaped handlers return queued/created responses without starting a crawler or persisting a draft. Production integration still requires server authorization, reviewed specification pinning, privacy/security testing, auditing, and a non-WebMCP fallback.
 
 ## VPAT decision
 

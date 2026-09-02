@@ -13,7 +13,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://127.0.0.1:4173`. Use the “Demo role” selector in the application sidebar to inspect visitor, non-subscriber, trial, paid-member, and organization-administrator states. External services are replaceable mock adapters; the one live browser integration is a read-only `get-scan-status` WebMCP stub with deterministic fictional data. No paid account or cloud credential is required.
+Open `http://127.0.0.1:4173`. Use the “Demo role” selector in the application sidebar to inspect visitor, non-subscriber, trial, paid-member, and organization-administrator states. External services are replaceable mock adapters; the live browser integration registers four deterministic WebMCP stubs: `get-scan-status`, `start_accessibility_scan`, `list_accessibility_issues`, and `create_draft_acr`. No paid account or cloud credential is required.
 
 ## Verification
 
@@ -40,7 +40,7 @@ The Playwright checks expect the app at `http://127.0.0.1:4173`; the configurati
 
 ## Important prototype boundaries
 
-- Authentication, billing, scanning, scheduling, ACR generation, and deadlines are mock adapters. WebMCP feature-detects the current draft API and registers one read-only same-origin `get-scan-status` stub when supported.
+- Authentication, billing, scanning, scheduling, ACR generation, and deadlines are mock adapters. WebMCP feature-detects the current draft API and registers four same-origin stubs when supported. The start-scan and create-draft tools return write-shaped responses but do not run a crawler or persist data.
 - Credentials are never stored in fixtures or local persistence. Protected-scan fields are transient and are cleared at submission in the intended server flow.
 - Production URL submission must be revalidated server-side before and after DNS resolution and redirects.
 - Pricing and plan limits are draft assumptions, centralized in `src/domain.ts`.
