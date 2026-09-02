@@ -18,6 +18,7 @@
 - Apply request/body limits, per-user/org/target rate limits, idempotency, quotas, and abuse monitoring.
 - Encrypt secrets with a managed key hierarchy, limit decrypt permission to the scanner job, define retention, rotate/revoke, and never echo values.
 - Emit tamper-resistant audit events for auth, permissions, secrets, scans, schedules, report versions/exports, WebMCP grants, and admin changes.
+- The prototype WebMCP registration is same-origin and read-only, accepts only the optional enumerated stub identifier `SCN-1047`, returns fictional deterministic data, and makes no network request. Production tool handlers must re-check organization authorization server-side for every call.
 - Set restrictive CSP, HSTS, frame policy, referrer policy, MIME protections, permissions policy, and safe cache headers.
 
 ## Scanner worker controls

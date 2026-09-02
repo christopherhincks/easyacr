@@ -8,12 +8,13 @@ Verified on September 1, 2026 against the repository's production build.
 | --- | --- |
 | TypeScript project typecheck | Pass |
 | ESLint | Pass |
-| Vitest domain/entitlement tests | 5 passed |
+| Vitest domain and WebMCP stub tests | 10 passed |
 | Vite production build | Pass |
 | Playwright route, keyboard, and responsive checks | 26 passed |
 | axe-core serious/critical checks across representative routes | 16 passed |
 | Editable SVG XML validation | 25 screen compositions passed; supplied horizontal logo passed |
 | Theme-aware logo export | Normal logo on light screens and reversed logo on dark screens verified |
+| Live WebMCP discovery and invocation | `get-scan-status` discovered and returned the SCN-1047 stub in the in-app browser |
 
 ## Visual spot-check
 
@@ -27,7 +28,7 @@ Verified on September 1, 2026 against the repository's production build.
 - No credential, API-key, bearer-token, or private-key fixture was found in source or documentation.
 - Certification/conformance terminology was reviewed: scans and ACRs remain explicitly draft evidence, `Needs review` is not represented as a VPAT response term, and human review is required before reviewed export.
 - Deadline content includes a visible verification date and links to authoritative sources; applicability is presented as informational rather than legal advice.
-- WebMCP is described as experimental and feature-detected, with no invented stable browser API.
+- WebMCP is implemented against the feature-detected draft browser API. The registered tool is same-origin, read-only, restricted to SCN-1047, and returns fictional data without a network request.
 
 ## Remaining manual validation
 
