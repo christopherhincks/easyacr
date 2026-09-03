@@ -1,5 +1,12 @@
 # Security and privacy boundary notes
 
+> Historical design notes are retained below because they explain the security
+> model's evolution. The current shipped public-beta behavior is authoritative
+> in [`../README.md`](../README.md), [`WEBMCP_COMPATIBILITY.md`](WEBMCP_COMPATIBILITY.md),
+> and [`PRODUCTION_SMOKE_TEST.md`](PRODUCTION_SMOKE_TEST.md). In particular,
+> easyACR now runs durable, server-authorized public scans; it is not the
+> earlier deterministic-fixture prototype described in some historical notes.
+
 ## Interface controls
 
 - Accept only visibly complete HTTP/HTTPS targets and explain the server policy.
@@ -18,7 +25,11 @@
 - Apply request/body limits, per-user/org/target rate limits, idempotency, quotas, and abuse monitoring.
 - Encrypt secrets with a managed key hierarchy, limit decrypt permission to the scanner job, define retention, rotate/revoke, and never echo values.
 - Emit tamper-resistant audit events for auth, permissions, secrets, scans, schedules, report versions/exports, WebMCP grants, and admin changes.
-- The prototype WebMCP registration is same-origin and accepts only narrowly enumerated fictional fixture values. `get-scan-status` and `list_accessibility_issues` are read-only. `start_accessibility_scan` and `create_draft_acr` are marked write-shaped for honest client mediation, but the handlers start no crawler, persist no draft, accept no credentials, and make no network request. Production tool handlers must re-check organization authorization server-side for every call.
+- The current WebMCP registration is same-origin. `start_accessibility_scan`
+  and `create_draft_acr` are write-shaped and invoke server endpoints that
+  recheck session, CSRF, terms, quota, and target authorization before queueing
+  durable work. Scans accept only public HTTPS targets and never accept target
+  credentials.
 - Set restrictive CSP, HSTS, frame policy, referrer policy, MIME protections, permissions policy, and safe cache headers.
 
 ## Scanner worker controls

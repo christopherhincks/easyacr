@@ -1,5 +1,11 @@
 # Verification results
 
+> **Historical record — superseded for the shipped public beta.** This
+> September 1 prototype record intentionally describes deterministic fixtures.
+> It must not be used as evidence for the current live scan service. Current
+> verification is defined by the repository CI workflow and
+> [`PRODUCTION_SMOKE_TEST.md`](PRODUCTION_SMOKE_TEST.md).
+
 Verified on September 1, 2026 against the repository's production build.
 
 ## Automated results

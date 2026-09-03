@@ -5,17 +5,17 @@ an authorized user scan a public HTTPS site, inspect automated findings, and
 create a WCAG 2.2 draft-evidence attachment. It does **not** issue a completed
 ACR, certification, or legal conclusion.
 
-## Before judging
+## Start here
 
-The project owner must first publish the deployed hostname and provision a
-time-boxed magic-link account for the evaluator. Do not use a shared account
-or bypass authentication. Use only a public HTTPS fixture or a target the
-evaluator is expressly authorized to scan.
+Use an email inbox you control. A first-time verified email creates a personal
+easyACR workspace; returning users sign in without a password. Do not use a
+shared account or bypass authentication. Scan only a public HTTPS fixture or a
+target you are expressly authorized to scan.
 
 1. Open `https://app.easyacr.com/tools` in ChatGPT's in-app browser or Chrome
    with WebMCP enabled.
-2. Request a magic link with the provisioned email, sign in, and accept the
-   current scan terms.
+2. Select **Create or sign in**, enter your email, follow the magic link, and
+   accept the current scan terms.
 3. Confirm the browser reports that four tools are registered. If the client
    does not implement WebMCP, use the browser scan form; it calls the same
    server-authorized queue.
@@ -40,12 +40,12 @@ The UI states the beta boundaries: public HTTPS only, no credentials or
 authenticated areas, same-origin crawling, a ten-page cap, daily quota, and
 short-term abuse controls.
 
-## Release gates still owned by the project owner
+## Submission-owner checklist
 
 - Confirm public DNS, TLS, magic-link delivery, and the production smoke test.
-- Publish this work in a persistent public repository with an owner-approved
-  visible open-source license.
-- Record and publish the required short demo video.
+- Publish this work in a persistent public repository with an
+  owner-authorized visible open-source license.
+- Publish the required public short demo video.
 
 See [the demo runbook](docs/DEMO_RUNBOOK.md) and
 [dated build note](docs/HACKATHON_BUILD_NOTES.md) for reproducible evaluation.

@@ -1,7 +1,8 @@
 # 90-second WebMCP demo runbook
 
-Use a pre-provisioned evaluator account and an operator-owned public HTTPS
-fixture. Never demonstrate against a target without authorization.
+Use an email inbox you control and an operator-owned public HTTPS fixture. A
+first-time verified email creates a personal workspace. Never demonstrate
+against a target without authorization.
 
 | Time | Screen/action | Point to make |
 | --- | --- | --- |

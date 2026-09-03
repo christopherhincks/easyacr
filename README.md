@@ -31,6 +31,8 @@ The Playwright checks expect the app at `http://127.0.0.1:4173`; the configurati
 ## Evaluation materials
 
 - [Judge quickstart](JUDGING.md) — supported WebMCP and browser-fallback flow.
+- [Hackathon submission packet](HACKATHON_SUBMISSION.md) — ready-to-paste
+  description, judge instructions, and publication checklist.
 - [90-second demo runbook](docs/DEMO_RUNBOOK.md) — a safe, reproducible recording path.
 - [Dated WebMCP build note](docs/HACKATHON_BUILD_NOTES.md) — scope of the challenge extension.
 - [Judge-readiness specification](docs/SDD_JUDGE_READINESS.md) — requirements, critical review, and acceptance checks.
@@ -44,10 +46,16 @@ The Playwright checks expect the app at `http://127.0.0.1:4173`; the configurati
 - `design/screens-archive/` — preserved first export set from before the supplied theme-aware logo update.
 - `scripts/generate-svgs.mjs` — deterministic SVG artifact generator using the supplied logo and tokens.
 
-## Important prototype boundaries
+## Important public-beta boundaries
 
-- The public beta has no sign-up, password, billing, organization, scheduling, completed-ACR, or authenticated-target workflow. Deferred routes show an unavailable page rather than representative data.
-- Hosted deployments can use configured Supabase sign-in; local operator testing can use the invite compatibility path. Both accept only public HTTPS targets, require a controlled egress proxy, and cap same-origin scans at ten pages.
+- The hosted public beta uses passwordless email entry: a first-time verified
+  email creates a personal workspace and a returning user signs in. There is
+  no password, billing, organization, scheduling, completed-ACR, or
+  authenticated-target workflow. Deferred routes show an unavailable page
+  rather than representative data.
+- Hosted deployments accept only public HTTPS targets, require a controlled
+  egress proxy, and cap same-origin scans at ten pages. The invite
+  compatibility path is local-only operator tooling.
 - Credentials are not accepted or stored.
 - Production URL submission must be revalidated server-side before and after DNS resolution and redirects.
 - This prototype is not legal advice, a compliance claim, or an accessibility certification.
