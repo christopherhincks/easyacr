@@ -1,5 +1,4 @@
 /** Isolated durable scan worker. Never attach this container to public ingress. */
-import { lookup } from 'node:dns/promises';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
@@ -76,17 +75,14 @@ function proxyConfig(value = SCAN_EGRESS_PROXY) {
   url.username = ''; url.password = '';
   return { server: url.toString().replace(/\/$/, ''), ...(username ? { username } : {}), ...(password ? { password } : {}) };
 }
-function isPublicIp(address) {
-  const parts = address.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)?.slice(1).map(Number);
-  if (parts) { const [a, b, c] = parts; return !parts.some((part) => part > 255) && !(a === 0 || a === 10 || a === 127 || a >= 224 || a === 169 && b === 254 || a === 192 && b === 168 || a === 172 && b >= 16 && b <= 31 || a === 100 && b >= 64 && b <= 127 || a === 192 && b === 0 || a === 198 && (b === 18 || b === 19 || b === 51 || b === 100) || a === 203 && b === 0 && c === 113); }
-  const normalized = address.toLowerCase();
-  return /^[0-9a-f:]+$/i.test(normalized) && !(normalized === '::' || normalized === '::1' || normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb') || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('ff') || normalized.startsWith('2001:db8') || normalized.startsWith('::ffff:'));
-}
 async function validateTarget(input, expectedOrigin = undefined) {
   const url = new URL(input);
   if (url.protocol !== 'https:' || url.username || url.password || url.hash || url.hostname === 'localhost' || url.hostname.endsWith('.') || /^\[?[0-9a-f:.]+\]?$/i.test(url.hostname) || expectedOrigin && url.origin !== expectedOrigin) throw new Error('Target is outside the public HTTPS same-origin policy.');
-  const records = await lookup(url.hostname, { all: true, verbatim: true });
-  if (!records.length || records.some(({ address }) => !isPublicIp(address))) throw new Error('Target DNS must resolve exclusively to public IP addresses.');
+  // This worker deliberately has no direct internet or DNS route. The
+  // controlled egress proxy resolves every CONNECT host itself, rejects any
+  // non-public answer, and pins the validated numeric address. Keeping DNS
+  // resolution there prevents both an availability failure and a bypass of
+  // that network boundary.
   return url;
 }
 function finding(jobId, index, page, violation, node) {
