@@ -1090,25 +1090,31 @@ function ToolsPage({
   };
   useEffect(() => {
     let active = true;
-    void getEasyAcrSession()
-      .then((next) => {
+    void (async () => {
+      try {
+        const current = await getEasyAcrSession();
+        if (!active) return;
+        if (current.active) {
+          setSession(current);
+          return;
+        }
+        if (!supabaseEnabled) return;
+
+        const exchanged = await exchangeSupabaseSession();
+        if (!active || !exchanged) return;
+        const next = await getEasyAcrSession();
         if (active) setSession(next);
-      })
-      .catch(() => undefined);
-    if (supabaseEnabled && !registered)
-      void exchangeSupabaseSession()
-        .then((exchanged) => {
-          if (exchanged) window.location.replace("/tools");
-        })
-        .catch(() =>
+      } catch {
+        if (active)
           setAuthMessage(
             "Your sign-in link could not create an easyACR session. Try signing in again.",
-          ),
-        );
+          );
+      }
+    })();
     return () => {
       active = false;
     };
-  }, [registered]);
+  }, []);
   const acceptTerms = async (event: FormEvent) => {
     event.preventDefault();
     setTermsMessage("");
@@ -1243,6 +1249,8 @@ function ToolsPage({
           <strong>
             {registered
               ? "Four easyACR tools are registered for this session."
+              : session?.active && !session.termsAccepted && supabaseEnabled
+                ? "Accept the public-scan terms to enable WebMCP."
               : registrationStatus === "registering"
                 ? "Checking your scan session and registering tools…"
                 : registrationStatus === "unsupported"
@@ -1261,7 +1269,7 @@ function ToolsPage({
                   : "This local invite-compatibility mode is not the hosted public beta."}
           </p>
         </div>
-        {!registered && supabaseEnabled && (
+        {!registered && supabaseEnabled && !session?.active && (
           <form
             className="card stack"
             style={{ marginTop: 20 }}
@@ -1645,8 +1653,13 @@ function App() {
       .then((status) => {
         if (active) setWebMcpRegistrationStatus(status);
       })
-      .catch(() => {
-        if (active) setWebMcpRegistrationStatus("failed");
+      .catch((error) => {
+        if (!active) return;
+        setWebMcpRegistrationStatus(
+          error instanceof Error && error.message.includes("Accept the scan terms")
+            ? "disabled"
+            : "failed",
+        );
       });
     return () => {
       active = false;
