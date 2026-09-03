@@ -31,7 +31,7 @@ jobs:
           env EASYACR_PUBLIC_HOST=easyacr.example.test ACME_EMAIL=ops@example.test
           SUPABASE_URL=https://project.supabase.co SUPABASE_HOST=project.supabase.co
           SUPABASE_PUBLISHABLE_KEY=ci-placeholder SUPABASE_SERVICE_ROLE_KEY=ci-placeholder
-          SESSION_HMAC_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          SESSION_HMAC_SECRET=${{ github.sha }}${{ github.sha }}
           AUTH_GATEWAY_TOKEN=${{ github.sha }}${{ github.sha }}
           DATA_GATEWAY_TOKEN=${{ github.sha }}${{ github.sha }}
           PROXY_AUTH_TOKEN=${{ github.sha }}${{ github.sha }}
