@@ -35,5 +35,5 @@ docker run --rm \
   tar -C /source -czf "/backup/$(basename "$archive")" .
 
 test -s "$archive"
-shasum -a 256 "$archive" > "$archive.sha256"
+sha256sum "$archive" > "$archive.sha256"
 echo "Created $archive and $archive.sha256. Copy both to encrypted off-host storage and test restoration before relying on this backup."

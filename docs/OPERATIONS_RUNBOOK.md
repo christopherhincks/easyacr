@@ -32,6 +32,15 @@ On a suspected scan or service incident:
 4. Restore intake only after a controlled scan succeeds and the root cause is
    understood.
 
+## Guarded GitHub deployment
+
+The `Deploy production` workflow is manual only and serializes releases. Before
+using it, create the GitHub `production` environment and add these protected
+repository/environment secrets: `HETZNER_HOST` and
+`HETZNER_SSH_PRIVATE_KEY`. Until both exist, the workflow fails before it
+synchronizes source or touches a container. Use a dedicated deploy key rather
+than a personal operator key, and retain direct SSH as the break-glass path.
+
 ## Backups and restoration
 
 Supabase owns durable scan data, findings, user profiles, and evidence. Enable

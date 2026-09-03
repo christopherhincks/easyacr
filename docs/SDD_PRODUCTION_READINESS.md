@@ -20,8 +20,8 @@ stays on `easyacr.com`; the authenticated product stays on
 5. Prepare CAPTCHA and provider configuration without enabling an unverified
    or ineffective anti-abuse control.
 6. Keep deployment automation safe: CI continues to verify every change;
-   deploy automation must not be activated until protected GitHub SSH secrets
-   are configured.
+   deploy automation must fail before any deployment mutation until protected
+   GitHub SSH secrets are configured.
 
 ## Acceptance criteria
 
