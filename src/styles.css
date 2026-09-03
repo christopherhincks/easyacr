@@ -113,6 +113,16 @@ p { line-height: 1.55; } small, .muted { color: var(--body-secondary); }
 .hero-card::before { content: ''; position: absolute; width: 112px; height: 112px; border-radius: 50%; background: var(--brand-pink-50); opacity: .12; right: -24px; top: -54px; filter: blur(1px); }
 .workflow-item { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: start; gap: var(--space-sm); }
 .workflow-item svg { margin-top: .1em; }
+.marketing-hero { padding-bottom: 96px; }
+.marketing-hero h1 { max-width: 14ch; }
+.workflow-number { width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--radius-full); background: var(--brand-yellow-600); color: var(--brand-pink-1200); font-size: .8rem; font-weight: 800; }
+.marketing-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .8fr); gap: clamp(28px, 6vw, 72px); align-items: center; }
+.marketing-split h2 { max-width: 18ch; }
+.marketing-list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.marketing-list li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start; }
+.marketing-list svg { color: var(--success); margin-top: .1em; }
+.marketing-cta { padding-top: 0; }
+.marketing-cta .card { max-width: 860px; margin: 0 auto; padding: clamp(28px, 5vw, 56px); text-align: center; align-items: center; }
 .section { padding: 72px 0; } .section-alt { background: var(--surface-subtle); border-block: 1px solid var(--border-subtle); }
 .section-heading { max-width: 720px; margin-bottom: 32px; } .section-heading p { font-size: 1.08rem; }
 .card { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); }
@@ -242,6 +252,7 @@ fieldset { min-width: 0; padding: 16px; border: 1px solid var(--border-subtle); 
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid-3 { grid-template-columns: 1fr; }
   .hero-grid { grid-template-columns: 1fr; }
+  .marketing-split { grid-template-columns: 1fr; }
   .app-shell { display: block; }
   .sidebar { position: fixed; z-index: 50; inset: 0 auto 0 0; width: min(86vw, 320px); transform: translateX(-105%); transition: transform .2s ease; box-shadow: var(--shadow-lg); }
   .sidebar > .spaced { justify-content: space-between; }

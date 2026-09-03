@@ -42,6 +42,10 @@ import {
 
 type Navigate = (path: string) => void;
 type WebMcpUiStatus = WebMcpRegistrationStatus | "registering";
+export function isMarketingHostname(hostname: string) {
+  return ["www.easyacr.com", "easyacr.com"].includes(hostname);
+}
+const marketingHost = typeof window !== "undefined" && isMarketingHostname(window.location.hostname);
 type Scan = {
   id: string;
   target: string;
@@ -559,6 +563,88 @@ function Home({ navigate }: { navigate: Navigate }) {
       </section>
     </>
   );
+}
+
+function MarketingSite() {
+  const { navigate } = useRouter();
+  const [theme, setTheme] = useState<"light" | "dark">(
+    () => (localStorage.getItem("easyacr-theme") as "light" | "dark") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+  );
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("easyacr-theme", theme);
+  }, [theme]);
+  const app = "https://app.easyacr.com";
+  return <>
+    <a className="skip-link" href="#main">Skip to main content</a>
+    <header className="public-header">
+      <div className="container">
+        <Logo navigate={navigate} />
+        <nav id="marketing-menu" className={`public-nav ${open ? "open" : ""}`} aria-label="Primary" onClick={() => setOpen(false)}>
+          <a href="#how-it-works">How it works</a>
+          <a href="#boundaries">What it covers</a>
+          <a href="#webmcp">WebMCP</a>
+          <a href={`${app}/sign-in`}>Sign in</a>
+          <a className="button small" href={`${app}/create-account`}>Create account</a>
+        </nav>
+        <div className="header-actions">
+          <ThemeButton theme={theme} setTheme={setTheme} />
+          <button className="menu-button" type="button" aria-expanded={open} aria-controls="marketing-menu" onClick={() => setOpen((value) => !value)}><span className="sr-only">Menu</span>{open ? <X size={22} /> : <Menu size={22} />}</button>
+        </div>
+      </div>
+    </header>
+    <main id="main">
+      <section className="hero marketing-hero">
+        <div className="container hero-grid">
+          <div className="stack">
+            <span className="eyebrow">Accessibility evidence for the agentic web</span>
+            <h1>Give your agent a safe way to begin accessibility work.</h1>
+            <p>easyACR lets compatible WebMCP agents initiate bounded, authorized scans of public websites, surface automated findings, and prepare durable evidence for human review.</p>
+            <div className="cluster">
+              <a className="button" href={`${app}/create-account`}>Create your workspace <ArrowRight size={18} /></a>
+              <a className="button secondary" href={`${app}/dashboard`}>Open your workspace</a>
+            </div>
+            <small>No password to manage. Sign in with a secure email link. Automated evidence is never a conformance certification.</small>
+          </div>
+          <div className="hero-card stack" aria-label="easyACR workflow">
+            <div><span className="eyebrow">A deliberate workflow</span><h2>From request to review</h2></div>
+            {[
+              ["Authorize", "Confirm that you own the public site or have permission to test it."],
+              ["Scan", "An agent or browser queues a same-origin public-site scan, capped at 10 pages."],
+              ["Review", "Inspect automated findings and attach immutable evidence for qualified human evaluation."],
+            ].map(([title, copy], index) => <div className="workflow-item" key={title}><span className="workflow-number" aria-hidden="true">{index + 1}</span><span><strong>{title}</strong><br />{copy}</span></div>)}
+          </div>
+        </div>
+      </section>
+      <section className="section section-alt" id="how-it-works">
+        <div className="container">
+          <div className="section-heading"><span className="eyebrow">Built for accountable teams</span><h2>Useful automation, clear responsibility.</h2><p>For agencies, product teams, and accessibility practitioners who need a faster first pass without turning a scan into a promise.</p></div>
+          <div className="grid-3">
+            <article className="card"><Globe2 /><h3>Stay in scope</h3><p>easyACR accepts public HTTPS targets only. It refuses credentials, private networks, IP literals, and cross-origin crawl expansion.</p></article>
+            <article className="card"><TerminalSquare /><h3>Work with agents</h3><p>WebMCP exposes focused tools for starting scans, checking status, reading findings, and creating draft evidence.</p></article>
+            <article className="card"><ShieldCheck /><h3>Keep humans in the loop</h3><p>Automated findings are evidence—not an ACR, legal advice, or a conformance determination. Human evaluation remains essential.</p></article>
+          </div>
+        </div>
+      </section>
+      <section className="section" id="webmcp">
+        <div className="container marketing-split">
+          <div className="stack"><span className="eyebrow">WebMCP, applied narrowly</span><h2>Let people and agents collaborate on the first hard step.</h2><p>Instead of asking an agent to imitate a browser workflow or handle credentials, easyACR declares a small, reviewable tool surface on the page. Agents can request an authorized scan and bring structured evidence back to the person responsible for the work.</p><a className="text-link" href={`${app}/tools`}>Explore the live WebMCP tools <ArrowRight size={16} /></a></div>
+          <aside className="card stack"><h3>Available in the public beta</h3><ul className="marketing-list"><li><CheckCircle2 size={18} /> Start an authorized accessibility scan</li><li><CheckCircle2 size={18} /> Read scan status and automated findings</li><li><CheckCircle2 size={18} /> Create immutable automated-evidence attachments</li></ul><p className="muted">Browser fallback is available when WebMCP is not supported.</p></aside>
+        </div>
+      </section>
+      <section className="section section-alt" id="boundaries">
+        <div className="container marketing-split">
+          <div><span className="eyebrow">A truthful beta</span><h2>What easyACR does—and does not—do today.</h2></div>
+          <div className="stack"><div className="callout success"><strong>It does</strong><p>Organize durable public-site scan records, findings, target authorization, and automated evidence in a personal workspace.</p></div><div className="callout warning"><strong>It does not</strong><p>Scan authenticated experiences, sell plans, schedule recurring work, manage teams, or produce a completed Accessibility Conformance Report. Those capabilities require dedicated workflows and safeguards.</p></div></div>
+        </div>
+      </section>
+      <section className="section marketing-cta">
+        <div className="container card stack"><span className="eyebrow">Start with a public site you are allowed to test</span><h2>Make your next accessibility review more actionable.</h2><p>Create a personal workspace, accept the responsible-use terms, and let your agent begin a bounded first pass.</p><div><a className="button" href={`${app}/create-account`}>Create account <ArrowRight size={18} /></a></div></div>
+      </section>
+    </main>
+    <footer className="footer"><div className="container spaced"><Logo navigate={navigate} /><p className="muted">Automated accessibility evidence for public websites. Not a certification service.</p><nav className="cluster" aria-label="Footer"><a href={`${app}/terms`}>Terms</a><a href={`${app}/privacy`}>Privacy</a><a href={`${app}/acceptable-use`}>Acceptable use</a><a href="mailto:support@easyacr.com">Support</a></nav></div></footer>
+  </>;
 }
 
 function LegalPage({ kind }: { kind: "terms" | "privacy" | "acceptable-use" }) {
@@ -2078,7 +2164,7 @@ function UnavailablePage({
     </div>
   );
 }
-function App() {
+function ProductApp() {
   const { path, navigate } = useRouter();
   const [theme, setTheme] = useState<"light" | "dark">(
     () =>
@@ -2242,4 +2328,9 @@ function App() {
     </PublicShell>
   );
 }
+
+function App() {
+  return marketingHost ? <MarketingSite /> : <ProductApp />;
+}
+
 export default App;

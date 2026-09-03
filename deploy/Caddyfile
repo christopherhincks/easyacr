@@ -4,7 +4,7 @@
 	email {$ACME_EMAIL}
 }
 
-{$EASYACR_PUBLIC_HOST} {
+{$EASYACR_PUBLIC_HOST}, www.easyacr.com {
 	encode zstd gzip
 
 	# The scanner API accepts small JSON requests only. This also prevents a
@@ -36,11 +36,4 @@
 		header_up -X-Forwarded-Proto
 		header_up X-Forwarded-Proto {scheme}
 	}
-}
-
-# The application owns identity and the public product experience. Keep www as
-# a canonical handoff so a host-only app session never needs to be shared with
-# the marketing domain, and no route can fall back to the legacy mock build.
-www.easyacr.com {
-	redir https://app.easyacr.com{uri} permanent
 }
