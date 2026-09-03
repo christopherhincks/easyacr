@@ -238,8 +238,8 @@ function PublicShell({
               </Link>
             ))}
             {signedIn ? null : <>
-              <Link to="/account" navigate={navigate}>Sign in</Link>
-              <Link to="/account" navigate={navigate} className="button small">Create account</Link>
+              <Link to="/sign-in" navigate={navigate}>Sign in</Link>
+              <Link to="/create-account" navigate={navigate} className="button small">Create account</Link>
             </>}
           </nav>
           <div className="header-actions">
@@ -331,6 +331,7 @@ function AuthenticatedShell({
   setTheme,
   accountEmail,
   workspaceName,
+  onSignOut,
   children,
 }: {
   path: string;
@@ -339,9 +340,14 @@ function AuthenticatedShell({
   setTheme: (value: "light" | "dark") => void;
   accountEmail: string | null;
   workspaceName: string | null;
+  onSignOut: () => Promise<void>;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountError, setAccountError] = useState("");
+  const accountButton = useRef<HTMLButtonElement>(null);
+  const accountMenu = useRef<HTMLDivElement>(null);
   const items = [
     ["/dashboard", "Dashboard", LayoutDashboard],
     ["/scans", "Scans", Globe2],
@@ -354,6 +360,37 @@ function AuthenticatedShell({
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("") || "EA";
+  useEffect(() => {
+    if (!open && !accountOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (accountOpen) {
+        setAccountOpen(false);
+        accountButton.current?.focus();
+      } else {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, accountOpen]);
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!accountMenu.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [accountOpen]);
+  const signOut = async () => {
+    setAccountError("");
+    try {
+      await onSignOut();
+      setAccountOpen(false);
+    } catch (error) {
+      setAccountError(error instanceof Error ? error.message : "Could not sign you out. Refresh and try again.");
+    }
+  };
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">Skip to main content</a>
@@ -380,7 +417,40 @@ function AuthenticatedShell({
           </div>
           <div className="cluster">
             <ThemeButton theme={theme} setTheme={setTheme} />
-            <Link to="/account" navigate={navigate} className="avatar" ariaLabel="Open account">{initials}</Link>
+            <div className="account-menu" ref={accountMenu}>
+              <button
+                ref={accountButton}
+                className="account-trigger"
+                type="button"
+                aria-label={accountEmail ? `Open account menu for ${accountEmail}` : "Open account menu"}
+                aria-expanded={accountOpen}
+                aria-controls="app-account-popover"
+                onClick={() => {
+                  setAccountError("");
+                  setAccountOpen((value) => !value);
+                }}
+              >
+                <span aria-hidden="true">{initials}</span>
+              </button>
+              {accountOpen && <div id="app-account-popover" className="account-popover" role="group" aria-label="Account menu">
+                <div className="account-identity">
+                  <span className="account-avatar" aria-hidden="true">{initials}</span>
+                  <div>
+                    <strong>{accountEmail || "Your easyACR account"}</strong>
+                    <span>{workspaceName || "Personal workspace"}</span>
+                  </div>
+                </div>
+                <div className="account-menu-links" onClick={() => setAccountOpen(false)}>
+                  <Link to="/account" navigate={navigate}>Account settings</Link>
+                  <Link to="/scans" navigate={navigate}>Scan history</Link>
+                  <Link to="/tools" navigate={navigate}>Open tools</Link>
+                </div>
+                <div className="account-menu-footer">
+                  <button type="button" onClick={() => void signOut()}>Sign out</button>
+                  {accountError && <p role="alert">{accountError}</p>}
+                </div>
+              </div>}
+            </div>
           </div>
         </header>
         <main id="main" className="app-content">{children}</main>
@@ -1830,12 +1900,14 @@ function AccountPage({
   onSignOut,
   workspaceProfile,
   onProfileChange,
+  entryMode = "sign-in",
 }: {
   navigate: Navigate;
   onSessionChange: (session: WebMcpSession) => void;
   onSignOut: () => Promise<void>;
   workspaceProfile: WorkspaceProfile | null;
   onProfileChange: (profile: WorkspaceProfile) => void;
+  entryMode?: "create" | "sign-in";
 }) {
   const [session, setSession] = useState<WebMcpSession | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -1844,6 +1916,9 @@ function AccountPage({
   const [displayName, setDisplayName] = useState(workspaceProfile?.displayName || "");
   const [workspaceName, setWorkspaceName] = useState(workspaceProfile?.workspaceName || "");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [entryEmail, setEntryEmail] = useState("");
+  const [entryMessage, setEntryMessage] = useState("");
+  const [requestingLink, setRequestingLink] = useState(false);
   useEffect(() => {
     setDisplayName(workspaceProfile?.displayName || "");
     setWorkspaceName(workspaceProfile?.workspaceName || "");
@@ -1895,6 +1970,21 @@ function AccountPage({
       setSavingProfile(false);
     }
   };
+  const requestLink = async (event: FormEvent) => {
+    event.preventDefault();
+    setEntryMessage("");
+    setRequestingLink(true);
+    try {
+      await sendMagicLink(entryEmail);
+      setEntryMessage(entryMode === "create"
+        ? "Check your email to verify your address and create your personal workspace."
+        : "Check your email for your secure sign-in link.");
+    } catch (error) {
+      setEntryMessage(error instanceof Error ? error.message : "We could not send your secure link. Try again shortly.");
+    } finally {
+      setRequestingLink(false);
+    }
+  };
   return (
     <section className="section">
       <div className="container stack">
@@ -1921,18 +2011,36 @@ function AccountPage({
               </div>
               <div><button className="button secondary" type="submit" disabled={savingProfile}>{savingProfile ? "Saving…" : "Save workspace details"}</button></div>
             </form>}
+            <div className="card-flat stack">
+              <h3>Account and access</h3>
+              <div className="settings-list">
+                <div><strong>Email sign-in</strong><p>{email || workspaceProfile?.email || "Your verified email"}<br /><span className="muted">Magic links are sent to this address.</span></p></div>
+                <div><strong>Public-scan agreement</strong><p>{session.termsAccepted ? "Accepted for this workspace." : "Acceptance is required before scanning."}<br /><Link to="/terms" navigate={navigate}>Terms of Service</Link><span aria-hidden="true"> · </span><Link to="/acceptable-use" navigate={navigate}>Acceptable Use</Link><span aria-hidden="true"> · </span><Link to="/privacy" navigate={navigate}>Privacy</Link></p></div>
+                <div><strong>Help with your account</strong><p><a href="mailto:support@easyacr.com">support@easyacr.com</a></p></div>
+              </div>
+            </div>
+            <div className="card-flat stack account-danger-zone">
+              <div><h3>Sign out of this browser</h3><p className="muted">This ends this browser session. Your workspace and scan history are not deleted.</p></div>
+              <div><button className="button destructive" type="button" onClick={() => void signOut()}>Sign out</button></div>
+            </div>
             <div className="cluster">
               <button className="button" onClick={() => navigate("/scans")}>View scan history</button>
               <button className="button secondary" onClick={() => navigate("/tools")}>Open tools</button>
-              <button className="text-link" onClick={() => void signOut()}>Sign out</button>
             </div>
           </div>
         ) : (
           <div className="card stack">
-            <span className="eyebrow">Not signed in</span>
-            <h2>Access your personal workspace</h2>
-            <p>Use your work email to receive a magic link. Your scan history and terms acceptance stay connected to that account.</p>
-            <div><button className="button" onClick={() => navigate("/tools")}>Create or sign in</button></div>
+            <span className="eyebrow">{entryMode === "create" ? "New to easyACR" : "Welcome back"}</span>
+            <h2>{entryMode === "create" ? "Create your easyACR account" : "Sign in to easyACR"}</h2>
+            <p>{entryMode === "create"
+              ? "Start with your work email. After you verify it, we create your personal workspace and guide you through public-scan setup."
+              : "Enter the email connected to your personal workspace and we’ll send a secure, passwordless sign-in link."}</p>
+            <form className="stack" onSubmit={(event) => void requestLink(event)}>
+              <div className="field"><label htmlFor="account-entry-email">Work email</label><input id="account-entry-email" type="email" value={entryEmail} onChange={(event) => setEntryEmail(event.target.value)} autoComplete="email" required /></div>
+              {entryMessage && <p role="status" className="muted">{entryMessage}</p>}
+              <div><button className="button" type="submit" disabled={requestingLink}>{requestingLink ? "Sending secure link…" : entryMode === "create" ? "Create account with email" : "Send sign-in link"}</button></div>
+            </form>
+            <p className="muted">{entryMode === "create" ? <>Already have an account? <Link to="/sign-in" navigate={navigate}>Sign in</Link>.</> : <>New to easyACR? <Link to="/create-account" navigate={navigate}>Create an account</Link>.</>}</p>
           </div>
         )}
         {message && <div className="callout warning"><p>{message}</p></div>}
@@ -2093,8 +2201,8 @@ function App() {
       <ScansPage navigate={navigate} />
     ) : isScanRoute ? (
       <LiveScanDetail navigate={navigate} scanId={scanId} />
-    ) : path === "/account" ? (
-      <AccountPage navigate={navigate} onSessionChange={setAccountSession} onSignOut={signOut} workspaceProfile={workspaceProfile} onProfileChange={setWorkspaceProfile} />
+    ) : path === "/account" || path === "/sign-in" || path === "/create-account" ? (
+      <AccountPage navigate={navigate} onSessionChange={setAccountSession} onSignOut={signOut} workspaceProfile={workspaceProfile} onProfileChange={setWorkspaceProfile} entryMode={path === "/create-account" ? "create" : "sign-in"} />
     ) : path === "/terms" ||
       path === "/privacy" ||
       path === "/acceptable-use" ? (
@@ -2115,6 +2223,7 @@ function App() {
     setTheme,
     accountEmail,
     workspaceName: workspaceProfile?.workspaceName ?? null,
+    onSignOut: signOut,
   };
   if (authenticatedProduct) {
     return <AuthenticatedShell {...shellProps}>{profileLoading ? <div className="card"><p>Preparing your workspace…</p></div> : page}</AuthenticatedShell>;

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-const publicRoutes = ['/', '/tools', '/scans', '/account', '/terms', '/privacy', '/acceptable-use'];
-const deferredRoutes = ['/features', '/pricing', '/about', '/sign-up', '/sign-in', '/password-recovery', '/checkout/success', '/onboarding', '/dashboard', '/scans/new', '/schedules', '/acrs', '/acrs/new', '/acrs/northstar-federal', '/billing', '/organization'];
+const publicRoutes = ['/', '/tools', '/scans', '/account', '/sign-in', '/create-account', '/terms', '/privacy', '/acceptable-use'];
+const deferredRoutes = ['/features', '/pricing', '/about', '/sign-up', '/password-recovery', '/checkout/success', '/onboarding', '/dashboard', '/scans/new', '/schedules', '/acrs', '/acrs/new', '/acrs/northstar-federal', '/billing', '/organization'];
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('easyacr-theme', 'light'));
@@ -36,7 +36,9 @@ test('authenticated product shell presents one accessible account control', asyn
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }) });
   });
   await page.goto('/');
-  await expect(page.getByRole('link', { name: 'Open account' })).toHaveAttribute('href', '/account');
+  await page.getByRole('button', { name: 'Open account menu' }).click();
+  await expect(page.getByRole('link', { name: 'Account settings' })).toHaveAttribute('href', '/account');
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await expect(page.getByText('Signed in', { exact: true })).toHaveCount(0);
 });
 
@@ -54,11 +56,16 @@ test('authenticated users enter the real product dashboard', async ({ page }) =>
   await expect(page.locator('body')).not.toContainText('Northstar');
 });
 
-test('signed-out account page provides the magic-link entry point', async ({ page }) => {
-  await page.goto('/account');
-  await expect(page.getByRole('heading', { name: 'Access your personal workspace' })).toBeVisible();
-  await page.getByRole('button', { name: 'Create or sign in' }).click();
-  await expect(page).toHaveURL(/\/tools$/);
+test('account creation and sign-in have distinct passwordless entry points', async ({ page }) => {
+  await page.goto('/create-account');
+  await expect(page.getByRole('heading', { name: 'Create your easyACR account' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create account with email' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Sign in' }).last()).toHaveAttribute('href', '/sign-in');
+
+  await page.goto('/sign-in');
+  await expect(page.getByRole('heading', { name: 'Sign in to easyACR' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send sign-in link' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Create an account' })).toHaveAttribute('href', '/create-account');
 });
 
 test('browser fallback reads the nested scan identifier returned by the API', async ({ page }) => {

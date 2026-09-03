@@ -96,6 +96,12 @@ p { line-height: 1.55; } small, .muted { color: var(--body-secondary); }
 .account-menu-footer { padding: 6px; border-top: 1px solid var(--border-subtle); }
 .account-menu-footer button { color: var(--error); }
 .account-menu-footer p { margin: 6px 10px 4px; color: var(--error); font-size: .82rem; }
+.settings-list { display: grid; gap: 16px; }
+.settings-list > div + div { padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+.settings-list p { margin: 4px 0 0; }
+.account-danger-zone { border-color: color-mix(in srgb, var(--error) 35%, var(--border-subtle)); }
+.button.destructive { border-color: var(--error); background: var(--error); color: white; }
+.button.destructive:hover { filter: brightness(.92); }
 .theme-button, .icon-button, .menu-button { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; border: 1px solid var(--border-subtle); background: var(--surface); border-radius: var(--radius-sm); cursor: pointer; }
 .menu-button { display: none; }
 

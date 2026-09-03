@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-const routes = ['/', '/tools', '/scans', '/terms', '/privacy', '/acceptable-use', '/dashboard'];
+const routes = ['/', '/tools', '/scans', '/sign-in', '/create-account', '/terms', '/privacy', '/acceptable-use', '/dashboard'];
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('easyacr-theme', 'light'));
