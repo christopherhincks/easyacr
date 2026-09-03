@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-const publicRoutes = ['/', '/tools', '/scans', '/terms', '/privacy', '/acceptable-use'];
-const deferredRoutes = ['/features', '/pricing', '/about', '/sign-up', '/sign-in', '/password-recovery', '/checkout/success', '/onboarding', '/dashboard', '/scans/new', '/schedules', '/acrs', '/acrs/new', '/acrs/northstar-federal', '/account', '/billing', '/organization'];
+const publicRoutes = ['/', '/tools', '/scans', '/account', '/terms', '/privacy', '/acceptable-use'];
+const deferredRoutes = ['/features', '/pricing', '/about', '/sign-up', '/sign-in', '/password-recovery', '/checkout/success', '/onboarding', '/dashboard', '/scans/new', '/schedules', '/acrs', '/acrs/new', '/acrs/northstar-federal', '/billing', '/organization'];
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('easyacr-theme', 'light'));
@@ -29,6 +29,21 @@ test('landing primary calls to action both lead to Tools', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('link', { name: /Open WebMCP tools/ })).toHaveAttribute('href', '/tools');
   await expect(page.getByRole('link', { name: 'Start scan beta' })).toHaveAttribute('href', '/tools');
+});
+
+test('account entry shows signed-in state for an active scan session', async ({ page }) => {
+  await page.route('**/api/v1/session', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }) });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Account · signed in' })).toHaveAttribute('href', '/account');
+});
+
+test('signed-out account page provides the magic-link entry point', async ({ page }) => {
+  await page.goto('/account');
+  await expect(page.getByRole('heading', { name: 'Access your personal workspace' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create or sign in' }).click();
+  await expect(page).toHaveURL(/\/tools$/);
 });
 
 test('browser fallback reads the nested scan identifier returned by the API', async ({ page }) => {

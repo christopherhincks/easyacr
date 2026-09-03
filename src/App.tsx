@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -29,6 +29,7 @@ import {
 } from "./webmcp";
 import {
   exchangeSupabaseSession,
+  getSupabaseAccountEmail,
   sendMagicLink,
   signOutOfSupabase,
   supabaseEnabled,
@@ -137,12 +138,14 @@ function PublicShell({
   navigate,
   theme,
   setTheme,
+  signedIn,
   children,
 }: {
   path: string;
   navigate: Navigate;
   theme: "light" | "dark";
   setTheme: (value: "light" | "dark") => void;
+  signedIn: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -150,6 +153,7 @@ function PublicShell({
   const items = [
     ["/tools", "Tools"],
     ["/scans", "Scans"],
+    ["/account", signedIn ? "Account · signed in" : "Account"],
     ["/terms", "Terms"],
   ] as const;
   useEffect(() => {
@@ -1017,9 +1021,11 @@ function LiveScanDetail({
 function ToolsPage({
   registrationStatus,
   navigate,
+  onSessionChange,
 }: {
   registrationStatus: WebMcpUiStatus;
   navigate: Navigate;
+  onSessionChange: (session: WebMcpSession) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [invite, setInvite] = useState("");
@@ -1040,6 +1046,10 @@ function ToolsPage({
   const canUseBrowserFallback = Boolean(
     session?.active && (session.termsAccepted || !supabaseEnabled),
   );
+  const updateSession = useCallback((next: WebMcpSession) => {
+    setSession(next);
+    onSessionChange(next);
+  }, [onSessionChange]);
   const enableBeta = async (event: FormEvent) => {
     event.preventDefault();
     setInviteError("");
@@ -1095,7 +1105,7 @@ function ToolsPage({
         const current = await getEasyAcrSession();
         if (!active) return;
         if (current.active) {
-          setSession(current);
+          updateSession(current);
           return;
         }
         if (!supabaseEnabled) return;
@@ -1103,7 +1113,7 @@ function ToolsPage({
         const exchanged = await exchangeSupabaseSession();
         if (!active || !exchanged) return;
         const next = await getEasyAcrSession();
-        if (active) setSession(next);
+        if (active) updateSession(next);
       } catch {
         if (active)
           setAuthMessage(
@@ -1114,7 +1124,7 @@ function ToolsPage({
     return () => {
       active = false;
     };
-  }, []);
+  }, [updateSession]);
   const acceptTerms = async (event: FormEvent) => {
     event.preventDefault();
     setTermsMessage("");
@@ -1598,6 +1608,95 @@ function Toast({
     </div>
   );
 }
+function AccountPage({
+  navigate,
+  onSessionChange,
+}: {
+  navigate: Navigate;
+  onSessionChange: (session: WebMcpSession) => void;
+}) {
+  const [session, setSession] = useState<WebMcpSession | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      getEasyAcrSession(),
+      supabaseEnabled ? getSupabaseAccountEmail() : Promise.resolve(null),
+    ])
+      .then(([nextSession, nextEmail]) => {
+        if (!active) return;
+        setSession(nextSession);
+        setEmail(nextEmail);
+        onSessionChange(nextSession);
+      })
+      .catch(() => {
+        if (active) setMessage("We could not load your account right now. Refresh and try again.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [onSessionChange]);
+  const signOut = async () => {
+    setMessage("");
+    try {
+      if (session?.active && session.csrfToken) {
+        const response = await fetch("/api/v1/session/revoke", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "x-csrf-token": session.csrfToken },
+        });
+        if (!response.ok)
+          throw new Error(await errorMessage(response, "Could not sign you out."));
+      }
+      await signOutOfSupabase();
+      window.location.replace("/account");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not sign you out. Refresh and try again.");
+    }
+  };
+  return (
+    <section className="section">
+      <div className="container stack">
+        <PageHeading eyebrow="Personal workspace" title="Account" copy="Manage your signed-in scan session and review your access." />
+        {loading ? (
+          <div className="card"><p>Loading your account…</p></div>
+        ) : session?.active ? (
+          <div className="card stack">
+            <div>
+              <span className="eyebrow">Signed in</span>
+              <h2>{email || "Your easyACR account"}</h2>
+              <p>Your personal workspace is active for public accessibility scans.</p>
+              {session.expiresAt && <p className="muted">Session expires {new Date(session.expiresAt).toLocaleString()}.</p>}
+            </div>
+            <div className="callout success">
+              <strong>{session.termsAccepted ? "Public-scan terms accepted" : "Terms acceptance required"}</strong>
+              <p>{session.termsAccepted ? "Your WebMCP tools and browser scan form can be used for authorized public HTTPS targets." : "Accept the current public-scan terms in Tools before starting a scan."}</p>
+            </div>
+            <div className="cluster">
+              <button className="button" onClick={() => navigate("/scans")}>View scan history</button>
+              <button className="button secondary" onClick={() => navigate("/tools")}>Open tools</button>
+              <button className="text-link" onClick={() => void signOut()}>Sign out</button>
+            </div>
+          </div>
+        ) : (
+          <div className="card stack">
+            <span className="eyebrow">Not signed in</span>
+            <h2>Access your personal workspace</h2>
+            <p>Use your work email to receive a magic link. Your scan history and terms acceptance stay connected to that account.</p>
+            <div><button className="button" onClick={() => navigate("/tools")}>Create or sign in</button></div>
+          </div>
+        )}
+        {message && <div className="callout warning"><p>{message}</p></div>}
+      </div>
+    </section>
+  );
+}
+
 function UnavailablePage({
   navigate,
   title = "Page unavailable",
@@ -1636,10 +1735,24 @@ function App() {
   );
   const [webMcpRegistrationStatus, setWebMcpRegistrationStatus] =
     useState<WebMcpUiStatus>("disabled");
+  const [accountSession, setAccountSession] = useState<WebMcpSession | null>(null);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("easyacr-theme", theme);
   }, [theme]);
+  useEffect(() => {
+    let active = true;
+    void getEasyAcrSession()
+      .then((session) => {
+        if (active) setAccountSession(session);
+      })
+      .catch(() => {
+        if (active) setAccountSession(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [path]);
   useEffect(() => {
     if (path !== "/tools") {
       setWebMcpRegistrationStatus("disabled");
@@ -1678,11 +1791,14 @@ function App() {
       <ToolsPage
         registrationStatus={webMcpRegistrationStatus}
         navigate={navigate}
+        onSessionChange={setAccountSession}
       />
     ) : path === "/scans" ? (
       <ScansPage navigate={navigate} />
     ) : isScanRoute ? (
       <LiveScanDetail navigate={navigate} scanId={scanId} />
+    ) : path === "/account" ? (
+      <AccountPage navigate={navigate} onSessionChange={setAccountSession} />
     ) : path === "/terms" ||
       path === "/privacy" ||
       path === "/acceptable-use" ? (
@@ -1702,6 +1818,7 @@ function App() {
       navigate={navigate}
       theme={theme}
       setTheme={setTheme}
+      signedIn={Boolean(accountSession?.active)}
     >
       {page}
     </PublicShell>

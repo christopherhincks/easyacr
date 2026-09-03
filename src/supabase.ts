@@ -32,6 +32,14 @@ export async function exchangeSupabaseSession() {
   return true;
 }
 
+export async function getSupabaseAccountEmail() {
+  const supabase = await getSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  return data.user?.email ?? null;
+}
+
 export async function signOutOfSupabase() {
   const supabase = await getSupabase();
   if (supabase) await supabase.auth.signOut();

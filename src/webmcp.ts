@@ -21,6 +21,7 @@ export type WebMcpSession = {
   webMcpEnabled: boolean;
   csrfToken?: string;
   termsAccepted: boolean;
+  expiresAt?: string | null;
 };
 
 declare global {
