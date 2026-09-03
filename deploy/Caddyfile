@@ -4,7 +4,7 @@
 	email {$ACME_EMAIL}
 }
 
-{$EASYACR_PUBLIC_HOST}, www.easyacr.com {
+{$EASYACR_PUBLIC_HOST}, easyacr.com {
 	encode zstd gzip
 
 	# The scanner API accepts small JSON requests only. This also prevents a
@@ -36,4 +36,10 @@
 		header_up -X-Forwarded-Proto
 		header_up X-Forwarded-Proto {scheme}
 	}
+}
+
+# The apex is the public canonical site. www remains a compatibility alias
+# and deliberately never shares the authenticated app session.
+www.easyacr.com {
+	redir https://easyacr.com{uri} permanent
 }

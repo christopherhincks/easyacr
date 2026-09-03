@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMarketingHostname } from "./App";
+import { isMarketingHostname } from "./host-routing";
 
 describe("marketing host routing", () => {
   it("reserves the marketing domains for the public site", () => {

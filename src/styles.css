@@ -123,6 +123,8 @@ p { line-height: 1.55; } small, .muted { color: var(--body-secondary); }
 .marketing-list svg { color: var(--success); margin-top: .1em; }
 .marketing-cta { padding-top: 0; }
 .marketing-cta .card { max-width: 860px; margin: 0 auto; padding: clamp(28px, 5vw, 56px); text-align: center; align-items: center; }
+.marketing-auth-card { padding: clamp(28px, 5vw, 52px); }
+.marketing-auth-card h1 { font-size: clamp(2rem, 4vw, 3rem); }
 .section { padding: 72px 0; } .section-alt { background: var(--surface-subtle); border-block: 1px solid var(--border-subtle); }
 .section-heading { max-width: 720px; margin-bottom: 32px; } .section-heading p { font-size: 1.08rem; }
 .card { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); }

@@ -19,12 +19,12 @@ async function getSupabase() {
   return supabasePromise;
 }
 
-export async function sendMagicLink(email: string) {
+export async function sendMagicLink(email: string, emailRedirectTo = `${window.location.origin}/tools`) {
   const supabase = await getSupabase();
   if (!supabase) throw new Error('Supabase sign-in is not configured.');
   // A magic link is the account entry point: a first-time verified email may
   // create a personal workspace, while returning users simply sign in.
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/tools` } });
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo } });
   if (error) throw error;
 }
 

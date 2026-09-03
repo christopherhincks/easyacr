@@ -22,6 +22,7 @@ import {
 import logoLightUrl from "../easyacrlogo.svg";
 import logoDarkUrl from "../easyacrlogo-reversed.svg";
 import type { ScanStatus, Severity } from "./domain";
+import { isMarketingHostname } from "./host-routing";
 import {
   getEasyAcrSession,
   getWebMcpSession,
@@ -42,9 +43,6 @@ import {
 
 type Navigate = (path: string) => void;
 type WebMcpUiStatus = WebMcpRegistrationStatus | "registering";
-export function isMarketingHostname(hostname: string) {
-  return ["www.easyacr.com", "easyacr.com"].includes(hostname);
-}
 const marketingHost = typeof window !== "undefined" && isMarketingHostname(window.location.hostname);
 type Scan = {
   id: string;
@@ -565,8 +563,31 @@ function Home({ navigate }: { navigate: Navigate }) {
   );
 }
 
+function MarketingAuthPage({ entryMode, navigate }: { entryMode: "create" | "sign-in"; navigate: Navigate }) {
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setMessage("");
+    setSending(true);
+    try {
+      await sendMagicLink(email, "https://app.easyacr.com/tools");
+      setMessage(entryMode === "create"
+        ? "Check your email to verify your address. We’ll create your workspace after you open the secure link."
+        : "Check your email for your secure sign-in link.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "We could not send your secure link. Try again shortly.");
+    } finally {
+      setSending(false);
+    }
+  };
+  const creating = entryMode === "create";
+  return <section className="section"><div className="container" style={{ maxWidth: 620 }}><div className="card stack marketing-auth-card"><span className="eyebrow">{creating ? "New to easyACR" : "Welcome back"}</span><h1>{creating ? "Create your easyACR workspace" : "Sign in to easyACR"}</h1><p>{creating ? "Start with your work email. After verification, you’ll finish setup in your personal workspace." : "Enter the email connected to your workspace and we’ll send a secure, passwordless sign-in link."}</p><form className="stack" onSubmit={(event) => void submit(event)}><div className="field"><label htmlFor="marketing-email">Work email</label><input id="marketing-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></div>{message && <p role="status" className="muted">{message}</p>}<div><button className="button" type="submit" disabled={sending}>{sending ? "Sending secure link…" : creating ? "Create account with email" : "Send sign-in link"} <ArrowRight size={18} /></button></div></form><p className="muted">{creating ? <>Already have an account? <Link to="/sign-in" navigate={navigate}>Sign in</Link>.</> : <>New to easyACR? <Link to="/create-account" navigate={navigate}>Create an account</Link>.</>}</p></div></div></section>;
+}
+
 function MarketingSite() {
-  const { navigate } = useRouter();
+  const { path, navigate } = useRouter();
   const [theme, setTheme] = useState<"light" | "dark">(
     () => (localStorage.getItem("easyacr-theme") as "light" | "dark") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
   );
@@ -575,7 +596,8 @@ function MarketingSite() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("easyacr-theme", theme);
   }, [theme]);
-  const app = "https://app.easyacr.com";
+  const entryMode = path === "/create-account" ? "create" : path === "/sign-in" ? "sign-in" : null;
+  const legalKind = ["/terms", "/privacy", "/acceptable-use"].includes(path) ? path.slice(1) as "terms" | "privacy" | "acceptable-use" : null;
   return <>
     <a className="skip-link" href="#main">Skip to main content</a>
     <header className="public-header">
@@ -585,8 +607,8 @@ function MarketingSite() {
           <a href="#how-it-works">How it works</a>
           <a href="#boundaries">What it covers</a>
           <a href="#webmcp">WebMCP</a>
-          <a href={`${app}/sign-in`}>Sign in</a>
-          <a className="button small" href={`${app}/create-account`}>Create account</a>
+          <Link to="/sign-in" navigate={navigate}>Sign in</Link>
+          <Link className="button small" to="/create-account" navigate={navigate}>Create account</Link>
         </nav>
         <div className="header-actions">
           <ThemeButton theme={theme} setTheme={setTheme} />
@@ -594,7 +616,7 @@ function MarketingSite() {
         </div>
       </div>
     </header>
-    <main id="main">
+    <main id="main">{entryMode ? <MarketingAuthPage entryMode={entryMode} navigate={navigate} /> : legalKind ? <LegalPage kind={legalKind} /> : <>
       <section className="hero marketing-hero">
         <div className="container hero-grid">
           <div className="stack">
@@ -602,8 +624,8 @@ function MarketingSite() {
             <h1>Give your agent a safe way to begin accessibility work.</h1>
             <p>easyACR lets compatible WebMCP agents initiate bounded, authorized scans of public websites, surface automated findings, and prepare durable evidence for human review.</p>
             <div className="cluster">
-              <a className="button" href={`${app}/create-account`}>Create your workspace <ArrowRight size={18} /></a>
-              <a className="button secondary" href={`${app}/dashboard`}>Open your workspace</a>
+              <Link className="button" to="/create-account" navigate={navigate}>Create your workspace <ArrowRight size={18} /></Link>
+              <Link className="button secondary" to="/sign-in" navigate={navigate}>Sign in to your workspace</Link>
             </div>
             <small>No password to manage. Sign in with a secure email link. Automated evidence is never a conformance certification.</small>
           </div>
@@ -629,7 +651,7 @@ function MarketingSite() {
       </section>
       <section className="section" id="webmcp">
         <div className="container marketing-split">
-          <div className="stack"><span className="eyebrow">WebMCP, applied narrowly</span><h2>Let people and agents collaborate on the first hard step.</h2><p>Instead of asking an agent to imitate a browser workflow or handle credentials, easyACR declares a small, reviewable tool surface on the page. Agents can request an authorized scan and bring structured evidence back to the person responsible for the work.</p><a className="text-link" href={`${app}/tools`}>Explore the live WebMCP tools <ArrowRight size={16} /></a></div>
+          <div className="stack"><span className="eyebrow">WebMCP, applied narrowly</span><h2>Let people and agents collaborate on the first hard step.</h2><p>Instead of asking an agent to imitate a browser workflow or handle credentials, easyACR declares a small, reviewable tool surface on the page. Agents can request an authorized scan and bring structured evidence back to the person responsible for the work.</p><Link className="text-link" to="/sign-in" navigate={navigate}>Sign in to use the live WebMCP tools <ArrowRight size={16} /></Link></div>
           <aside className="card stack"><h3>Available in the public beta</h3><ul className="marketing-list"><li><CheckCircle2 size={18} /> Start an authorized accessibility scan</li><li><CheckCircle2 size={18} /> Read scan status and automated findings</li><li><CheckCircle2 size={18} /> Create immutable automated-evidence attachments</li></ul><p className="muted">Browser fallback is available when WebMCP is not supported.</p></aside>
         </div>
       </section>
@@ -640,10 +662,10 @@ function MarketingSite() {
         </div>
       </section>
       <section className="section marketing-cta">
-        <div className="container card stack"><span className="eyebrow">Start with a public site you are allowed to test</span><h2>Make your next accessibility review more actionable.</h2><p>Create a personal workspace, accept the responsible-use terms, and let your agent begin a bounded first pass.</p><div><a className="button" href={`${app}/create-account`}>Create account <ArrowRight size={18} /></a></div></div>
+        <div className="container card stack"><span className="eyebrow">Start with a public site you are allowed to test</span><h2>Make your next accessibility review more actionable.</h2><p>Create a personal workspace, accept the responsible-use terms, and let your agent begin a bounded first pass.</p><div><Link className="button" to="/create-account" navigate={navigate}>Create account <ArrowRight size={18} /></Link></div></div>
       </section>
-    </main>
-    <footer className="footer"><div className="container spaced"><Logo navigate={navigate} /><p className="muted">Automated accessibility evidence for public websites. Not a certification service.</p><nav className="cluster" aria-label="Footer"><a href={`${app}/terms`}>Terms</a><a href={`${app}/privacy`}>Privacy</a><a href={`${app}/acceptable-use`}>Acceptable use</a><a href="mailto:support@easyacr.com">Support</a></nav></div></footer>
+    </>}</main>
+    <footer className="footer"><div className="container spaced"><Logo navigate={navigate} /><p className="muted">Automated accessibility evidence for public websites. Not a certification service.</p><nav className="cluster" aria-label="Footer"><Link to="/terms" navigate={navigate}>Terms</Link><Link to="/privacy" navigate={navigate}>Privacy</Link><Link to="/acceptable-use" navigate={navigate}>Acceptable use</Link><a href="mailto:support@easyacr.com">Support</a></nav></div></footer>
   </>;
 }
 
