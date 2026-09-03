@@ -218,7 +218,17 @@ async function dataGateway(path, init = {}) {
     signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok) throw new Error(`Data gateway request failed (${response.status}).`);
-  return response.json();
+  // A mutation may legitimately acknowledge success without a response body.
+  // In particular, older gateway deployments did this for terms acceptance.
+  // Treat a 2xx empty body as `null` rather than turning a completed mutation
+  // into a client-visible JSON parsing failure.
+  const body = await response.text();
+  if (!body) return null;
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error('Data gateway returned invalid JSON.');
+  }
 }
 
 function publicPersistentJob(job) {
