@@ -38,20 +38,9 @@
 	}
 }
 
-# The marketing site remains on its existing host while the product moves to
-# app.easyacr.com. Product-shaped paths must never land in the legacy mock
-# build: they preserve their path and query string when handed to the app.
+# The application owns identity and the public product experience. Keep www as
+# a canonical handoff so a host-only app session never needs to be shared with
+# the marketing domain, and no route can fall back to the legacy mock build.
 www.easyacr.com {
-	@product_path path /account /account/* /tools /tools/* /scans /scans/*
-	redir @product_path https://app.easyacr.com{uri} permanent
-
-	# Keep the public marketing homepage and content available during the
-	# transition. The numeric upstream deliberately bypasses Cloudflare, so the
-	# proxy cannot loop back through this Caddy instance after DNS is changed.
-	reverse_proxy https://64.22.68.21 {
-		header_up Host www.easyacr.com
-		transport http {
-			tls_server_name www.easyacr.com
-		}
-	}
+	redir https://app.easyacr.com{uri} permanent
 }
