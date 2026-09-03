@@ -31,17 +31,13 @@ test('landing primary calls to action both lead to Tools', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Start scan beta' })).toHaveAttribute('href', '/tools');
 });
 
-test('account entry presents one accessible account control for an active scan session', async ({ page }) => {
+test('authenticated product shell presents one accessible account control', async ({ page }) => {
   await page.route('**/api/v1/session', async (route) => {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }) });
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open account menu' }).click();
-  await expect(page.getByLabel('Account menu').getByRole('link', { name: 'Account' })).toHaveAttribute('href', '/account');
-  await expect(page.getByLabel('Account menu').getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open account' })).toHaveAttribute('href', '/account');
   await expect(page.getByText('Signed in', { exact: true })).toHaveCount(0);
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Open account menu' })).toBeFocused();
 });
 
 test('authenticated users enter the real product dashboard', async ({ page }) => {
