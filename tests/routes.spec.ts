@@ -11,7 +11,7 @@ for (const route of publicRoutes) {
   test(`${route} renders the public beta shell`, async ({ page }) => {
     await page.goto(route);
     await expect(page.locator('h1').first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Open tools' }).first()).toHaveAttribute('href', '/tools');
+    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tools' })).toHaveAttribute('href', '/tools');
     await expect(page.locator('body')).not.toContainText('Northstar');
   });
 }
@@ -31,12 +31,17 @@ test('landing primary calls to action both lead to Tools', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Start scan beta' })).toHaveAttribute('href', '/tools');
 });
 
-test('account entry shows signed-in state for an active scan session', async ({ page }) => {
+test('account entry presents one accessible account control for an active scan session', async ({ page }) => {
   await page.route('**/api/v1/session', async (route) => {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }) });
   });
   await page.goto('/');
-  await expect(page.getByRole('link', { name: 'Account Signed in' })).toHaveAttribute('href', '/account');
+  await page.getByRole('button', { name: 'Open account menu' }).click();
+  await expect(page.getByLabel('Account menu').getByRole('link', { name: 'Account' })).toHaveAttribute('href', '/account');
+  await expect(page.getByLabel('Account menu').getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expect(page.getByText('Signed in', { exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Open account menu' })).toBeFocused();
 });
 
 test('signed-out account page provides the magic-link entry point', async ({ page }) => {

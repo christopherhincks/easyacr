@@ -139,6 +139,8 @@ function PublicShell({
   theme,
   setTheme,
   signedIn,
+  accountEmail,
+  onSignOut,
   children,
 }: {
   path: string;
@@ -146,27 +148,61 @@ function PublicShell({
   theme: "light" | "dark";
   setTheme: (value: "light" | "dark") => void;
   signedIn: boolean;
+  accountEmail: string | null;
+  onSignOut: () => Promise<void>;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountError, setAccountError] = useState("");
   const button = useRef<HTMLButtonElement>(null);
+  const accountButton = useRef<HTMLButtonElement>(null);
+  const accountMenu = useRef<HTMLDivElement>(null);
   const items = [
     ["/tools", "Tools"],
     ["/scans", "Scans"],
-    ["/account", signedIn ? "Account · signed in" : "Account"],
     ["/terms", "Terms"],
   ] as const;
+  const initials = (accountEmail || "easyACR")
+    .split("@")[0]
+    .split(/[.\s_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "EA";
   useEffect(() => {
-    if (!open) return;
+    if (!open && !accountOpen) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setOpen(false);
-        button.current?.focus();
+        if (accountOpen) {
+          setAccountOpen(false);
+          accountButton.current?.focus();
+        } else {
+          setOpen(false);
+          button.current?.focus();
+        }
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, accountOpen]);
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!accountMenu.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [accountOpen]);
+  const signOut = async () => {
+    setAccountError("");
+    try {
+      await onSignOut();
+      setAccountOpen(false);
+    } catch (error) {
+      setAccountError(error instanceof Error ? error.message : "Could not sign you out. Try again.");
+    }
+  };
   return (
     <>
       <a className="skip-link" href="#main">
@@ -186,25 +222,54 @@ function PublicShell({
                 key={to}
                 to={to}
                 navigate={navigate}
-                className={to === "/account" ? "account-nav-link" : undefined}
                 current={
                   path === to || (to === "/scans" && path.startsWith("/scans/"))
                 }
               >
-                {to === "/account" ? (
-                  <>
-                    Account
-                    {signedIn && <span className="account-state">Signed in</span>}
-                  </>
-                ) : label}
+                {label}
               </Link>
             ))}
-            <Link to="/tools" navigate={navigate} className="button small">
-              Open tools
-            </Link>
+            {signedIn ? null : <>
+              <Link to="/account" navigate={navigate}>Sign in</Link>
+              <Link to="/account" navigate={navigate} className="button small">Create account</Link>
+            </>}
           </nav>
-          <div className="cluster">
+          <div className="header-actions">
             <ThemeButton theme={theme} setTheme={setTheme} />
+            {signedIn && <div className="account-menu" ref={accountMenu}>
+              <button
+                ref={accountButton}
+                className="account-trigger"
+                type="button"
+                aria-label={accountEmail ? `Open account menu for ${accountEmail}` : "Open account menu"}
+                aria-expanded={accountOpen}
+                aria-controls="account-popover"
+                onClick={() => {
+                  setAccountError("");
+                  setAccountOpen((value) => !value);
+                }}
+              >
+                <span aria-hidden="true">{initials}</span>
+              </button>
+              {accountOpen && <div id="account-popover" className="account-popover" role="group" aria-label="Account menu">
+                <div className="account-identity">
+                  <span className="account-avatar" aria-hidden="true">{initials}</span>
+                  <div>
+                    <strong>{accountEmail || "Your easyACR account"}</strong>
+                    <span>Personal workspace</span>
+                  </div>
+                </div>
+                <div className="account-menu-links" onClick={() => setAccountOpen(false)}>
+                  <Link to="/account" navigate={navigate}>Account</Link>
+                  <Link to="/scans" navigate={navigate}>Scan history</Link>
+                  <Link to="/tools" navigate={navigate}>Open tools</Link>
+                </div>
+                <div className="account-menu-footer">
+                  <button type="button" onClick={() => void signOut()}>Sign out</button>
+                  {accountError && <p role="alert">{accountError}</p>}
+                </div>
+              </div>}
+            </div>}
             <button
               ref={button}
               className="menu-button"
@@ -1617,9 +1682,11 @@ function Toast({
 function AccountPage({
   navigate,
   onSessionChange,
+  onSignOut,
 }: {
   navigate: Navigate;
   onSessionChange: (session: WebMcpSession) => void;
+  onSignOut: () => Promise<void>;
 }) {
   const [session, setSession] = useState<WebMcpSession | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -1650,17 +1717,9 @@ function AccountPage({
   const signOut = async () => {
     setMessage("");
     try {
-      if (session?.active && session.csrfToken) {
-        const response = await fetch("/api/v1/session/revoke", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "x-csrf-token": session.csrfToken },
-        });
-        if (!response.ok)
-          throw new Error(await errorMessage(response, "Could not sign you out."));
-      }
-      await signOutOfSupabase();
-      window.location.replace("/account");
+      await onSignOut();
+      setSession({ active: false, webMcpEnabled: false, termsAccepted: false });
+      setEmail(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not sign you out. Refresh and try again.");
     }
@@ -1742,6 +1801,7 @@ function App() {
   const [webMcpRegistrationStatus, setWebMcpRegistrationStatus] =
     useState<WebMcpUiStatus>("disabled");
   const [accountSession, setAccountSession] = useState<WebMcpSession | null>(null);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("easyacr-theme", theme);
@@ -1750,15 +1810,41 @@ function App() {
     let active = true;
     void getEasyAcrSession()
       .then((session) => {
-        if (active) setAccountSession(session);
+        if (!active) return;
+        setAccountSession(session);
+        if (session.active && supabaseEnabled) {
+          void getSupabaseAccountEmail()
+            .then((email) => { if (active) setAccountEmail(email); })
+            .catch(() => { if (active) setAccountEmail(null); });
+        } else {
+          setAccountEmail(null);
+        }
       })
       .catch(() => {
-        if (active) setAccountSession(null);
+        if (active) {
+          setAccountSession(null);
+          setAccountEmail(null);
+        }
       });
     return () => {
       active = false;
     };
   }, [path]);
+  const signOut = useCallback(async () => {
+    const session = await getEasyAcrSession();
+    if (session.active && session.csrfToken) {
+      const response = await fetch("/api/v1/session/revoke", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "x-csrf-token": session.csrfToken },
+      });
+      if (!response.ok) throw new Error(await errorMessage(response, "Could not sign you out."));
+    }
+    await signOutOfSupabase();
+    setAccountSession(null);
+    setAccountEmail(null);
+    navigate("/account");
+  }, [navigate]);
   useEffect(() => {
     if (path !== "/tools") {
       setWebMcpRegistrationStatus("disabled");
@@ -1804,7 +1890,7 @@ function App() {
     ) : isScanRoute ? (
       <LiveScanDetail navigate={navigate} scanId={scanId} />
     ) : path === "/account" ? (
-      <AccountPage navigate={navigate} onSessionChange={setAccountSession} />
+      <AccountPage navigate={navigate} onSessionChange={setAccountSession} onSignOut={signOut} />
     ) : path === "/terms" ||
       path === "/privacy" ||
       path === "/acceptable-use" ? (
@@ -1825,6 +1911,8 @@ function App() {
       theme={theme}
       setTheme={setTheme}
       signedIn={Boolean(accountSession?.active)}
+      accountEmail={accountEmail}
+      onSignOut={signOut}
     >
       {page}
     </PublicShell>
