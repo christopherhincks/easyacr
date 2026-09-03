@@ -32,9 +32,12 @@ import {
 import {
   exchangeSupabaseSession,
   getSupabaseAccountEmail,
+  getWorkspaceProfile,
+  saveWorkspaceProfile,
   sendMagicLink,
   signOutOfSupabase,
   supabaseEnabled,
+  type WorkspaceProfile,
 } from "./supabase";
 
 type Navigate = (path: string) => void;
@@ -327,6 +330,7 @@ function AuthenticatedShell({
   theme,
   setTheme,
   accountEmail,
+  workspaceName,
   children,
 }: {
   path: string;
@@ -334,6 +338,7 @@ function AuthenticatedShell({
   theme: "light" | "dark";
   setTheme: (value: "light" | "dark") => void;
   accountEmail: string | null;
+  workspaceName: string | null;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -371,7 +376,7 @@ function AuthenticatedShell({
         <header className="app-topbar">
           <div className="cluster">
             <button className="menu-button" type="button" onClick={() => setOpen(true)} aria-label="Open navigation"><Menu size={22} /></button>
-            <strong>Personal workspace</strong>
+            <strong>{workspaceName || "Personal workspace"}</strong>
           </div>
           <div className="cluster">
             <ThemeButton theme={theme} setTheme={setTheme} />
@@ -1791,19 +1796,58 @@ function Toast({
     </div>
   );
 }
+
+function OnboardingPage({
+  profile,
+  onComplete,
+}: {
+  profile: WorkspaceProfile;
+  onComplete: (profile: WorkspaceProfile) => void;
+}) {
+  const [displayName, setDisplayName] = useState(profile.displayName || "");
+  const [workspaceName, setWorkspaceName] = useState(profile.workspaceName || "");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setMessage("");
+    setSaving(true);
+    try {
+      const next = await saveWorkspaceProfile({ displayName, workspaceName, completeOnboarding: true });
+      if (!next) throw new Error("Your workspace profile could not be loaded.");
+      onComplete(next);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Your workspace could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <section className="onboarding-page"><div className="onboarding-card stack"><span className="eyebrow">Workspace setup</span><h1>Make this workspace yours.</h1><p>These details label your personal easyACR workspace. You can change them later in Account.</p><form className="stack" onSubmit={(event) => void submit(event)}><div className="field"><label htmlFor="display-name">Your name</label><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" maxLength={120} required /></div><div className="field"><label htmlFor="workspace-name">Workspace name</label><input id="workspace-name" value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} maxLength={120} required /></div><div className="callout warning"><strong>Public-scan beta</strong><p>Only scan public HTTPS sites that you own or are authorized to test. Automated results require human review.</p></div>{message && <p role="alert" className="error-text">{message}</p>}<div><button className="button" type="submit" disabled={saving}>{saving ? "Saving workspace…" : "Open dashboard"} <ArrowRight size={18} /></button></div></form></div></section>;
+}
 function AccountPage({
   navigate,
   onSessionChange,
   onSignOut,
+  workspaceProfile,
+  onProfileChange,
 }: {
   navigate: Navigate;
   onSessionChange: (session: WebMcpSession) => void;
   onSignOut: () => Promise<void>;
+  workspaceProfile: WorkspaceProfile | null;
+  onProfileChange: (profile: WorkspaceProfile) => void;
 }) {
   const [session, setSession] = useState<WebMcpSession | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [displayName, setDisplayName] = useState(workspaceProfile?.displayName || "");
+  const [workspaceName, setWorkspaceName] = useState(workspaceProfile?.workspaceName || "");
+  const [savingProfile, setSavingProfile] = useState(false);
+  useEffect(() => {
+    setDisplayName(workspaceProfile?.displayName || "");
+    setWorkspaceName(workspaceProfile?.workspaceName || "");
+  }, [workspaceProfile]);
   useEffect(() => {
     let active = true;
     void Promise.all([
@@ -1836,6 +1880,21 @@ function AccountPage({
       setMessage(error instanceof Error ? error.message : "Could not sign you out. Refresh and try again.");
     }
   };
+  const saveProfile = async (event: FormEvent) => {
+    event.preventDefault();
+    setMessage("");
+    setSavingProfile(true);
+    try {
+      const next = await saveWorkspaceProfile({ displayName, workspaceName });
+      if (!next) throw new Error("Your workspace profile could not be loaded.");
+      onProfileChange(next);
+      setMessage("Your workspace details were saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Your workspace details could not be saved.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
   return (
     <section className="section">
       <div className="container stack">
@@ -1854,6 +1913,14 @@ function AccountPage({
               <strong>{session.termsAccepted ? "Public-scan terms accepted" : "Terms acceptance required"}</strong>
               <p>{session.termsAccepted ? "Your WebMCP tools and browser scan form can be used for authorized public HTTPS targets." : "Accept the current public-scan terms in Tools before starting a scan."}</p>
             </div>
+            {workspaceProfile && <form className="card-flat stack" onSubmit={(event) => void saveProfile(event)}>
+              <h3>Workspace details</h3>
+              <div className="grid-2">
+                <div className="field"><label htmlFor="account-display-name">Your name</label><input id="account-display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" maxLength={120} required /></div>
+                <div className="field"><label htmlFor="account-workspace-name">Workspace name</label><input id="account-workspace-name" value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} maxLength={120} required /></div>
+              </div>
+              <div><button className="button secondary" type="submit" disabled={savingProfile}>{savingProfile ? "Saving…" : "Save workspace details"}</button></div>
+            </form>}
             <div className="cluster">
               <button className="button" onClick={() => navigate("/scans")}>View scan history</button>
               <button className="button secondary" onClick={() => navigate("/tools")}>Open tools</button>
@@ -1914,6 +1981,8 @@ function App() {
     useState<WebMcpUiStatus>("disabled");
   const [accountSession, setAccountSession] = useState<WebMcpSession | null>(null);
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [workspaceProfile, setWorkspaceProfile] = useState<WorkspaceProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("easyacr-theme", theme);
@@ -1942,6 +2011,20 @@ function App() {
       active = false;
     };
   }, [path]);
+  useEffect(() => {
+    if (!accountSession?.active || !accountSession.termsAccepted || !supabaseEnabled) {
+      setWorkspaceProfile(null);
+      setProfileLoading(false);
+      return;
+    }
+    let active = true;
+    setProfileLoading(true);
+    void getWorkspaceProfile()
+      .then((profile) => { if (active) setWorkspaceProfile(profile); })
+      .catch(() => { if (active) setWorkspaceProfile(null); })
+      .finally(() => { if (active) setProfileLoading(false); });
+    return () => { active = false; };
+  }, [accountSession?.active, accountSession?.termsAccepted]);
   const signOut = useCallback(async () => {
     const session = await getEasyAcrSession();
     if (session.active && session.csrfToken) {
@@ -1955,6 +2038,7 @@ function App() {
     await signOutOfSupabase();
     setAccountSession(null);
     setAccountEmail(null);
+    setWorkspaceProfile(null);
     navigate("/account");
   }, [navigate]);
   useEffect(() => {
@@ -1989,8 +2073,11 @@ function App() {
   const isScanRoute =
     /^scan_[0-9a-f-]+$/i.test(scanId) || /^[0-9a-f-]{36}$/i.test(scanId);
   const authenticatedProduct = Boolean(accountSession?.active && accountSession.termsAccepted);
+  const onboardingRequired = Boolean(authenticatedProduct && supabaseEnabled && workspaceProfile && !workspaceProfile.onboardingCompletedAt);
   const page =
-    path === "/dashboard" && authenticatedProduct ? (
+    onboardingRequired ? (
+      <OnboardingPage profile={workspaceProfile!} onComplete={setWorkspaceProfile} />
+    ) : path === "/dashboard" && authenticatedProduct ? (
       <DashboardPage navigate={navigate} />
     ) : path === "/" && authenticatedProduct ? (
       <DashboardPage navigate={navigate} />
@@ -2007,7 +2094,7 @@ function App() {
     ) : isScanRoute ? (
       <LiveScanDetail navigate={navigate} scanId={scanId} />
     ) : path === "/account" ? (
-      <AccountPage navigate={navigate} onSessionChange={setAccountSession} onSignOut={signOut} />
+      <AccountPage navigate={navigate} onSessionChange={setAccountSession} onSignOut={signOut} workspaceProfile={workspaceProfile} onProfileChange={setWorkspaceProfile} />
     ) : path === "/terms" ||
       path === "/privacy" ||
       path === "/acceptable-use" ? (
@@ -2027,9 +2114,10 @@ function App() {
     theme,
     setTheme,
     accountEmail,
+    workspaceName: workspaceProfile?.workspaceName ?? null,
   };
   if (authenticatedProduct) {
-    return <AuthenticatedShell {...shellProps}>{page}</AuthenticatedShell>;
+    return <AuthenticatedShell {...shellProps}>{profileLoading ? <div className="card"><p>Preparing your workspace…</p></div> : page}</AuthenticatedShell>;
   }
   return (
     <PublicShell

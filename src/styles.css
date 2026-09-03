@@ -170,6 +170,8 @@ p { line-height: 1.55; } small, .muted { color: var(--body-secondary); }
 .dashboard-empty { max-width: 680px; padding: 28px; }
 .dashboard-empty h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); }
 .dashboard-disclosure { margin-top: var(--space-2xl); }
+.onboarding-page { min-height: calc(100vh - 136px); display: grid; place-items: center; padding: var(--space-2xl) 0; }
+.onboarding-card { width: min(100%, 620px); padding: clamp(24px, 5vw, 40px); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-lg); }
 [data-theme="dark"] .trend { color: #c6f4d2; }
 [data-theme="dark"] .trend.negative { color: #ffc0c0; }
 .progress { height: 10px; border-radius: var(--radius-full); background: var(--surface-muted); overflow: hidden; }
