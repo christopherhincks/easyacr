@@ -1,0 +1,55 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: easyacr-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Require protected deployment secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST }}
+          DEPLOY_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+        run: |
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_KEY"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST }}
+          DEPLOY_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+      - name: Synchronize reviewed source
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          rsync -az --exclude '.git' --exclude 'node_modules' --exclude 'dist' --exclude '.env*' ./ "root@$DEPLOY_HOST:/opt/easyacr/"
+      - name: Validate and deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          ssh "root@$DEPLOY_HOST" 'cd /opt/easyacr && docker compose --env-file .env.production -f compose.yaml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && docker compose --env-file .env.production -f compose.yaml up --build --no-deps --force-recreate --detach app && docker compose --env-file .env.production -f compose.yaml up --no-deps --force-recreate --detach caddy'
+      - name: Verify public health
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 3 https://app.easyacr.com/healthz

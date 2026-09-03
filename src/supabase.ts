@@ -47,6 +47,26 @@ export async function getSupabaseAccountEmail() {
   return data.user?.email ?? null;
 }
 
+export async function requestSupabaseEmailChange(nextEmail: string) {
+  const supabase = await getSupabase();
+  if (!supabase) throw new Error("Supabase sign-in is not configured.");
+  const email = nextEmail.trim().toLowerCase();
+  if (!email || email.length > 320 || !/^\S+@\S+\.\S+$/.test(email)) {
+    throw new Error("Enter a valid email address.");
+  }
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user) throw new Error("Sign in before changing your email address.");
+  if (user.email?.toLowerCase() === email) {
+    throw new Error("That is already your sign-in email.");
+  }
+  const { error } = await supabase.auth.updateUser(
+    { email },
+    { emailRedirectTo: "https://app.easyacr.com/account" },
+  );
+  if (error) throw error;
+}
+
 export async function getWorkspaceProfile(): Promise<WorkspaceProfile | null> {
   const supabase = await getSupabase();
   if (!supabase) return null;

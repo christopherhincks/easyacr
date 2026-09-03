@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "test": "vitest run src && node --test server/index.test.mjs data-gateway/index.test.mjs scanner-proxy/index.test.mjs scanner-worker/index.test.mjs",
     "test:a11y": "playwright test tests/accessibility.spec.ts",
-    "test:routes": "playwright test tests/routes.spec.ts"
+    "test:routes": "playwright test tests/routes.spec.ts",
+    "check:production": "node scripts/production-readiness.mjs"
   },
   "dependencies": {
     "@axe-core/playwright": "^4.10.2",

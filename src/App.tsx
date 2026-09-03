@@ -34,6 +34,7 @@ import {
   exchangeSupabaseSession,
   getSupabaseAccountEmail,
   getWorkspaceProfile,
+  requestSupabaseEmailChange,
   saveWorkspaceProfile,
   sendMagicLink,
   signOutOfSupabase,
@@ -2027,6 +2028,8 @@ function AccountPage({
   const [entryEmail, setEntryEmail] = useState("");
   const [entryMessage, setEntryMessage] = useState("");
   const [requestingLink, setRequestingLink] = useState(false);
+  const [nextEmail, setNextEmail] = useState("");
+  const [requestingEmailChange, setRequestingEmailChange] = useState(false);
   useEffect(() => {
     setDisplayName(workspaceProfile?.displayName || "");
     setWorkspaceName(workspaceProfile?.workspaceName || "");
@@ -2093,6 +2096,20 @@ function AccountPage({
       setRequestingLink(false);
     }
   };
+  const requestEmailChange = async (event: FormEvent) => {
+    event.preventDefault();
+    setMessage("");
+    setRequestingEmailChange(true);
+    try {
+      await requestSupabaseEmailChange(nextEmail);
+      setNextEmail("");
+      setMessage("Check your current and new inboxes to confirm the sign-in email change. Your workspace history stays with this account.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "We could not request that email change. Try again shortly.");
+    } finally {
+      setRequestingEmailChange(false);
+    }
+  };
   return (
     <section className="section">
       <div className="container stack">
@@ -2127,6 +2144,11 @@ function AccountPage({
                 <div><strong>Help with your account</strong><p><a href="mailto:support@easyacr.com">support@easyacr.com</a></p></div>
               </div>
             </div>
+            {supabaseEnabled && <form className="card-flat stack" onSubmit={(event) => void requestEmailChange(event)}>
+              <div><h3>Change sign-in email</h3><p className="muted">We will verify the new address before it becomes your sign-in email. Your workspace and historic reports remain attached to this account.</p></div>
+              <div className="field"><label htmlFor="account-new-email">New work email</label><input id="account-new-email" type="email" value={nextEmail} onChange={(event) => setNextEmail(event.target.value)} autoComplete="email" required /></div>
+              <div><button className="button secondary" type="submit" disabled={requestingEmailChange}>{requestingEmailChange ? "Requesting change…" : "Request email change"}</button></div>
+            </form>}
             <div className="card-flat stack account-danger-zone">
               <div><h3>Sign out of this browser</h3><p className="muted">This ends this browser session. Your workspace and scan history are not deleted.</p></div>
               <div><button className="button destructive" type="button" onClick={() => void signOut()}>Sign out</button></div>
