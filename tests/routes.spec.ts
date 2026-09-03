@@ -36,7 +36,7 @@ test('account entry shows signed-in state for an active scan session', async ({ 
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }) });
   });
   await page.goto('/');
-  await expect(page.getByRole('link', { name: 'Account · signed in' })).toHaveAttribute('href', '/account');
+  await expect(page.getByRole('link', { name: 'Account Signed in' })).toHaveAttribute('href', '/account');
 });
 
 test('signed-out account page provides the magic-link entry point', async ({ page }) => {

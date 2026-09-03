@@ -186,11 +186,17 @@ function PublicShell({
                 key={to}
                 to={to}
                 navigate={navigate}
+                className={to === "/account" ? "account-nav-link" : undefined}
                 current={
                   path === to || (to === "/scans" && path.startsWith("/scans/"))
                 }
               >
-                {label}
+                {to === "/account" ? (
+                  <>
+                    Account
+                    {signedIn && <span className="account-state">Signed in</span>}
+                  </>
+                ) : label}
               </Link>
             ))}
             <Link to="/tools" navigate={navigate} className="button small">
@@ -285,7 +291,7 @@ function Home({ navigate }: { navigate: Navigate }) {
               "Same-origin crawl, capped at 10 pages",
               "Four agent tools and browser fallback",
             ].map((item) => (
-              <div className="cluster" key={item}>
+              <div className="workflow-item" key={item}>
                 <CheckCircle2
                   color="var(--success)"
                   size={20}

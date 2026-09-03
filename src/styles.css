@@ -78,18 +78,22 @@ p { line-height: 1.55; } small, .muted { color: var(--body-secondary); }
 .public-header { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--border-subtle); background: color-mix(in srgb, var(--page) 92%, transparent); backdrop-filter: blur(16px); }
 .public-header .container { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg); }
 .public-header .brand-lockup, .footer .brand-lockup { width: 116px; height: 50px; }
-.public-nav { display: flex; align-items: center; gap: var(--space-lg); }
+.public-nav { display: flex; align-items: center; gap: var(--space-md); }
 .public-nav a, .app-nav a { color: var(--body); text-decoration: none; font-weight: 650; }
 .public-nav a[aria-current="page"], .app-nav a[aria-current="page"] { color: var(--action); }
+.public-nav .account-nav-link { display: inline-flex; align-items: center; gap: 6px; }
+.account-state { display: inline-flex; align-items: center; padding: 2px 7px; border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border-subtle)); border-radius: 999px; color: var(--success); font-size: .68rem; font-weight: 750; line-height: 1.2; white-space: nowrap; }
 .theme-button, .icon-button, .menu-button { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; border: 1px solid var(--border-subtle); background: var(--surface); border-radius: var(--radius-sm); cursor: pointer; }
 .menu-button { display: none; }
 
 .hero { padding: clamp(64px, 10vw, 120px) 0 72px; overflow: hidden; }
 .hero-grid { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(340px, .88fr); gap: 56px; align-items: center; }
-.hero h1 { max-width: 14ch; font-size: clamp(2.6rem, 6vw, 4.8rem); }
+.hero h1 { max-width: 16ch; font-size: clamp(2.6rem, 5vw, 4.25rem); text-wrap: balance; }
 .hero p { max-width: 62ch; font-size: 1.18rem; }
 .hero-card { position: relative; padding: 28px; border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); background: linear-gradient(140deg, var(--surface), var(--surface-secondary-subtle)); box-shadow: var(--shadow-lg); }
-.hero-card::before { content: ''; position: absolute; width: 140px; height: 140px; border-radius: 50%; background: var(--brand-pink-50); opacity: .14; right: -32px; top: -40px; filter: blur(1px); }
+.hero-card::before { content: ''; position: absolute; width: 112px; height: 112px; border-radius: 50%; background: var(--brand-pink-50); opacity: .12; right: -24px; top: -54px; filter: blur(1px); }
+.workflow-item { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: start; gap: var(--space-sm); }
+.workflow-item svg { margin-top: .1em; }
 .section { padding: 72px 0; } .section-alt { background: var(--surface-subtle); border-block: 1px solid var(--border-subtle); }
 .section-heading { max-width: 720px; margin-bottom: 32px; } .section-heading p { font-size: 1.08rem; }
 .card { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); }
