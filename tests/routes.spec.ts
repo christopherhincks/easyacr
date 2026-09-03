@@ -44,6 +44,20 @@ test('account entry presents one accessible account control for an active scan s
   await expect(page.getByRole('button', { name: 'Open account menu' })).toBeFocused();
 });
 
+test('authenticated users enter the real product dashboard', async ({ page }) => {
+  await page.route('**/api/v1/session', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }) });
+  });
+  await page.route('**/api/v1/scans', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ scans: [] }) });
+  });
+  await page.goto('/dashboard');
+  await expect(page.getByRole('navigation', { name: 'Product' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByText('Your workspace is ready for its first scan.')).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('Northstar');
+});
+
 test('signed-out account page provides the magic-link entry point', async ({ page }) => {
   await page.goto('/account');
   await expect(page.getByRole('heading', { name: 'Access your personal workspace' })).toBeVisible();

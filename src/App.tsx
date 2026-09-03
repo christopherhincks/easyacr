@@ -6,6 +6,7 @@ import {
   CircleDot,
   Copy,
   Globe2,
+  LayoutDashboard,
   Menu,
   Moon,
   Plus,
@@ -14,6 +15,7 @@ import {
   Sun,
   TerminalSquare,
   TriangleAlert,
+  UserRound,
   X,
   XCircle,
 } from "lucide-react";
@@ -83,18 +85,21 @@ function Link({
   children,
   className,
   current,
+  ariaLabel,
 }: {
   to: string;
   navigate: Navigate;
   children: ReactNode;
   className?: string;
   current?: boolean;
+  ariaLabel?: string;
 }) {
   return (
     <a
       href={to}
       className={className}
       aria-current={current ? "page" : undefined}
+      aria-label={ariaLabel}
       onClick={(event) => {
         if (!event.metaKey && !event.ctrlKey) {
           event.preventDefault();
@@ -313,6 +318,69 @@ function PublicShell({
         </div>
       </footer>
     </>
+  );
+}
+
+function AuthenticatedShell({
+  path,
+  navigate,
+  theme,
+  setTheme,
+  accountEmail,
+  children,
+}: {
+  path: string;
+  navigate: Navigate;
+  theme: "light" | "dark";
+  setTheme: (value: "light" | "dark") => void;
+  accountEmail: string | null;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const items = [
+    ["/dashboard", "Dashboard", LayoutDashboard],
+    ["/scans", "Scans", Globe2],
+    ["/tools", "Tools · WebMCP", TerminalSquare],
+  ] as const;
+  const initials = (accountEmail || "easyACR")
+    .split("@")[0]
+    .split(/[.\s_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "EA";
+  return (
+    <div className="app-shell">
+      <a className="skip-link" href="#main">Skip to main content</a>
+      <aside className={`sidebar ${open ? "open" : ""}`} aria-label="Application navigation">
+        <div className="spaced">
+          <Logo navigate={navigate} />
+          {open && <button className="icon-button" type="button" onClick={() => setOpen(false)} aria-label="Close navigation"><X size={20} /></button>}
+        </div>
+        <nav className="app-nav" aria-label="Product">
+          {items.map(([to, label, Icon]) => <Link key={to} to={to} navigate={(next) => { setOpen(false); navigate(next); }} current={path === to || (to === "/scans" && path.startsWith("/scans/"))}>
+            <Icon size={19} aria-hidden="true" />{label}
+          </Link>)}
+        </nav>
+        <div className="sidebar-footer">
+          <p className="hint">Public-scan beta<br />Automated evidence only</p>
+          <Link to="/account" navigate={navigate} className="account-sidebar-link"><UserRound size={18} /> Account</Link>
+        </div>
+      </aside>
+      <div className="app-main">
+        <header className="app-topbar">
+          <div className="cluster">
+            <button className="menu-button" type="button" onClick={() => setOpen(true)} aria-label="Open navigation"><Menu size={22} /></button>
+            <strong>Personal workspace</strong>
+          </div>
+          <div className="cluster">
+            <ThemeButton theme={theme} setTheme={setTheme} />
+            <Link to="/account" navigate={navigate} className="avatar" ariaLabel="Open account">{initials}</Link>
+          </div>
+        </header>
+        <main id="main" className="app-content">{children}</main>
+      </div>
+    </div>
   );
 }
 
@@ -633,6 +701,50 @@ function ScanTable({ scans, navigate }: { scans: Scan[]; navigate: Navigate }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function DashboardPage({ navigate }: { navigate: Navigate }) {
+  const [scans, setScans] = useState<Scan[] | null>(null);
+  const [message, setMessage] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/v1/scans", { credentials: "same-origin" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await errorMessage(response, "Your dashboard could not be loaded."));
+        return response.json();
+      })
+      .then((payload) => {
+        if (!active) return;
+        setScans(Array.isArray(payload.scans) ? payload.scans : []);
+        setMessage("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setScans([]);
+        setMessage(error instanceof Error ? error.message : "Your dashboard could not be loaded.");
+      });
+    return () => { active = false; };
+  }, [refreshKey]);
+  const completed = scans?.filter((scan) => ["completed", "partial"].includes(scan.status)) || [];
+  const pages = completed.reduce((total, scan) => total + scan.pagesCrawled, 0);
+  const findings = completed.reduce((total, scan) => total + scan.summary.violationCount, 0);
+  const activeScans = scans?.filter((scan) => ["queued", "running"].includes(scan.status)).length || 0;
+  return (
+    <>
+      <PageHeading eyebrow="Personal workspace" title="Dashboard" copy="Your authorized public-site scans and automated evidence, in one place." action={<div className="cluster"><button className="button secondary" onClick={() => setRefreshKey((value) => value + 1)}><RefreshCw size={18} /> Refresh</button><button className="button" onClick={() => navigate("/tools")}><Plus size={18} /> New scan</button></div>} />
+      {message && <div className="callout warning"><strong>Dashboard unavailable</strong><p>{message}</p></div>}
+      {scans === null ? <div className="card"><p>Loading your workspace…</p></div> : scans.length === 0 ? <section className="card stack dashboard-empty"><span className="eyebrow">Start here</span><h2>Your workspace is ready for its first scan.</h2><p>Authorize a public HTTPS website, then let easyACR collect bounded automated evidence for your review.</p><div><button className="button" onClick={() => navigate("/tools")}>Start a public scan <ArrowRight size={18} /></button></div></section> : <>
+        <section className="grid-3 dashboard-metrics" aria-label="Workspace summary">
+          <article className="card metric"><span className="metric-label">Scans</span><span className="metric-value">{scans.length}</span><span className="muted">{activeScans ? `${activeScans} active now` : "No active scans"}</span></article>
+          <article className="card metric"><span className="metric-label">Pages evaluated</span><span className="metric-value">{pages}</span><span className="muted">Completed or partial scans</span></article>
+          <article className="card metric"><span className="metric-label">Automated findings</span><span className="metric-value">{findings}</span><span className="muted">Human review still required</span></article>
+        </section>
+        <section className="stack dashboard-recent"><div className="spaced"><div><h2>Recent scans</h2><p className="muted">Only scans in your personal workspace appear here.</p></div><button className="text-link" onClick={() => navigate("/scans")}>View all scans</button></div><ScanTable scans={scans.slice(0, 5)} navigate={navigate} /></section>
+      </>}
+      <div className="callout warning dashboard-disclosure"><strong>Evidence, not certification</strong><p>easyACR reports automated technical evidence. A completed Accessibility Conformance Report requires qualified human review.</p></div>
+    </>
   );
 }
 function ScansPage({ navigate }: { navigate: Navigate }) {
@@ -1876,8 +1988,13 @@ function App() {
   const scanId = path.startsWith("/scans/") ? path.slice("/scans/".length) : "";
   const isScanRoute =
     /^scan_[0-9a-f-]+$/i.test(scanId) || /^[0-9a-f-]{36}$/i.test(scanId);
+  const authenticatedProduct = Boolean(accountSession?.active && accountSession.termsAccepted);
   const page =
-    path === "/" ? (
+    path === "/dashboard" && authenticatedProduct ? (
+      <DashboardPage navigate={navigate} />
+    ) : path === "/" && authenticatedProduct ? (
+      <DashboardPage navigate={navigate} />
+    ) : path === "/" ? (
       <Home navigate={navigate} />
     ) : path === "/tools" ? (
       <ToolsPage
@@ -1904,6 +2021,16 @@ function App() {
         </div>
       </section>
     );
+  const shellProps = {
+    path,
+    navigate,
+    theme,
+    setTheme,
+    accountEmail,
+  };
+  if (authenticatedProduct) {
+    return <AuthenticatedShell {...shellProps}>{page}</AuthenticatedShell>;
+  }
   return (
     <PublicShell
       path={path}
