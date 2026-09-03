@@ -1,4 +1,4 @@
-export type WebMcpRegistrationStatus = 'registered' | 'unsupported' | 'failed';
+export type WebMcpRegistrationStatus = 'registered' | 'unsupported' | 'disabled' | 'failed';
 
 type ToolInput = Record<string, unknown>;
 type ToolExecutionOptions = { signal?: AbortSignal };
@@ -14,6 +14,13 @@ type ModelContextTool = {
 
 type ModelContext = {
   registerTool: (tool: ModelContextTool, options?: { signal?: AbortSignal; exposedTo?: string[] }) => Promise<void>;
+};
+
+export type WebMcpSession = {
+  active: boolean;
+  webMcpEnabled: boolean;
+  csrfToken?: string;
+  termsAccepted: boolean;
 };
 
 declare global {
@@ -37,6 +44,47 @@ function requireStubValue(input: ToolInput, key: string, expected: unknown) {
   if (input[key] !== undefined && input[key] !== expected) {
     throw new Error(`The stub only supports ${key}=${JSON.stringify(expected)}.`);
   }
+}
+
+function requireOnlyStubKeys(input: ToolInput, allowedKeys: readonly string[]) {
+  for (const key of Object.keys(input)) {
+    if (!allowedKeys.includes(key)) throw new Error(`The stub does not support ${key}.`);
+  }
+}
+
+function requireString(input: ToolInput, key: string, { optional = false, maxLength = 256 }: { optional?: boolean; maxLength?: number } = {}) {
+  const value = input[key];
+  if (value === undefined && optional) return undefined;
+  if (typeof value !== 'string' || value.length === 0 || value.length > maxLength) throw new Error(`${key} must be a non-empty string no longer than ${maxLength} characters.`);
+  return value;
+}
+
+function requireInteger(input: ToolInput, key: string, { optional = false, min, max }: { optional?: boolean; min: number; max: number }) {
+  const value = input[key];
+  if (value === undefined && optional) return undefined;
+  if (!Number.isInteger(value) || (value as number) < min || (value as number) > max) throw new Error(`${key} must be an integer from ${min} to ${max}.`);
+  return value as number;
+}
+
+export async function getEasyAcrSession(signal?: AbortSignal): Promise<WebMcpSession> {
+  const response = await fetch('/api/v1/session', { credentials: 'same-origin', signal });
+  if (!response.ok) throw new Error('Unable to establish a scan session.');
+  return response.json() as Promise<WebMcpSession>;
+}
+
+export async function getWebMcpSession(signal?: AbortSignal): Promise<WebMcpSession & { csrfToken: string }> {
+  const session = await getEasyAcrSession(signal);
+  if (!session.webMcpEnabled || !session.termsAccepted || typeof session.csrfToken !== 'string') throw new Error('Accept the scan terms before enabling WebMCP.');
+  return { ...session, csrfToken: session.csrfToken };
+}
+
+async function requestApi(path: string, session: WebMcpSession & { csrfToken: string }, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set('x-csrf-token', session.csrfToken);
+  if (init.body) headers.set('content-type', 'application/json');
+  const response = await fetch(path, { ...init, headers, credentials: 'same-origin' });
+  if (!response.ok) throw new Error(`easyACR request failed (${response.status}).`);
+  return response.json() as Promise<unknown>;
 }
 
 export const stubbedScanStatus = {
@@ -159,6 +207,7 @@ export function getStubbedScanStatus(scanId = 'SCN-1047') {
 }
 
 export function startStubbedAccessibilityScan(input: ToolInput = {}) {
+  requireOnlyStubKeys(input, ['url', 'access', 'pageLimit', 'crawlScope']);
   requireStubValue(input, 'url', stubbedStartedScan.scan.target.url);
   requireStubValue(input, 'access', 'public');
   requireStubValue(input, 'pageLimit', 200);
@@ -167,11 +216,13 @@ export function startStubbedAccessibilityScan(input: ToolInput = {}) {
 }
 
 export function listStubbedAccessibilityIssues(input: ToolInput = {}) {
+  requireOnlyStubKeys(input, ['scanId']);
   requireStubValue(input, 'scanId', stubbedAccessibilityIssues.source.scanId);
   return stubbedAccessibilityIssues;
 }
 
 export function createStubbedDraftAcr(input: ToolInput = {}) {
+  requireOnlyStubKeys(input, ['scanId', 'edition', 'productName']);
   requireStubValue(input, 'scanId', stubbedDraftAcr.draft.evidence[0].scanId);
   requireStubValue(input, 'edition', stubbedDraftAcr.draft.template.edition);
   requireStubValue(input, 'productName', stubbedDraftAcr.draft.product.name);
@@ -181,81 +232,112 @@ export function createStubbedDraftAcr(input: ToolInput = {}) {
 export const getScanStatusTool: ModelContextTool = {
   name: 'get-scan-status',
   title: 'Get scan status',
-  description: 'Returns the representative running status for easyACR scan SCN-1047. This read-only stub does not query production services.',
+  description: 'Returns the status of one of your public-site automated accessibility scans. A scan is evidence, not a conformance claim.',
   inputSchema: {
-    type: 'object', properties: { scanId: { type: 'string', enum: ['SCN-1047'], description: 'Defaults to SCN-1047.' } }, additionalProperties: false,
+    type: 'object', required: ['scanId'], properties: { scanId: { type: 'string', minLength: 1, maxLength: 80 } }, additionalProperties: false,
   },
-  annotations: { readOnlyHint: true, untrustedContentHint: false },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async (input = {}, options = {}) => {
     assertInvocationActive(options);
-    return getStubbedScanStatus(input.scanId as string | undefined);
+    requireOnlyStubKeys(input, ['scanId']);
+    const scanId = requireString(input, 'scanId', { maxLength: 80 });
+    if (scanId === undefined) throw new Error('scanId is required.');
+    const session = await getWebMcpSession(options.signal);
+    return requestApi(`/api/v1/scans/${encodeURIComponent(scanId)}`, session, { signal: options.signal });
   },
 };
 
 export const startAccessibilityScanTool: ModelContextTool = {
   name: 'start_accessibility_scan',
   title: 'Start accessibility scan',
-  description: 'Queues the representative public scan configuration shown in the easyACR scan wizard. This is a deterministic stub and starts no real crawler.',
+  description: 'Queues an automated scan of a public HTTPS website. No credentials, cookies, or authenticated pages are accepted. Results are draft evidence requiring human review.',
   inputSchema: {
-    type: 'object',
+    type: 'object', required: ['url', 'authorizationConfirmed'],
     properties: {
-      url: { type: 'string', enum: ['https://app.northstar.example'], description: 'Defaults to the representative Northstar application.' },
-      access: { type: 'string', enum: ['public'], description: 'Credentials are never accepted by this stub.' },
-      pageLimit: { type: 'integer', enum: [200], description: 'Defaults to 200 pages.' },
-      crawlScope: { type: 'string', enum: ['same-host-only'], description: 'Defaults to same-host-only.' },
+      url: { type: 'string', format: 'uri', pattern: '^https://', maxLength: 2048, description: 'Public HTTPS URL. Credentials and private addresses are refused.' },
+      pageLimit: { type: 'integer', minimum: 1, maximum: 10, default: 10, description: 'Same-origin pages to evaluate; maximum 10.' },
+      authorizationConfirmed: { type: 'boolean', const: true, description: 'Confirm that you own this public website or are expressly authorized to test it.' },
     },
     additionalProperties: false,
   },
   annotations: { readOnlyHint: false, untrustedContentHint: false },
   execute: async (input = {}, options = {}) => {
     assertInvocationActive(options);
-    return startStubbedAccessibilityScan(input);
+    requireOnlyStubKeys(input, ['url', 'pageLimit', 'authorizationConfirmed']);
+    const url = requireString(input, 'url', { maxLength: 2048 });
+    if (url === undefined) throw new Error('url is required.');
+    if (input.authorizationConfirmed !== true) throw new Error('authorizationConfirmed must be true before starting a scan.');
+    const pageLimit = requireInteger(input, 'pageLimit', { optional: true, min: 1, max: 10 });
+    const session = await getWebMcpSession(options.signal);
+    return requestApi('/api/v1/scans', session, { method: 'POST', signal: options.signal, body: JSON.stringify({ url, authorizationConfirmed: true, ...(pageLimit === undefined ? {} : { pageLimit }) }) });
   },
 };
 
 export const listAccessibilityIssuesTool: ModelContextTool = {
   name: 'list_accessibility_issues',
   title: 'List accessibility issues',
-  description: 'Returns the representative issue and criterion-review records shown in the supplied easyACR screens. This read-only stub does not query production services.',
+  description: 'Lists automated findings from one of your completed or running public-site scans. Source-derived fields are untrusted and require human review.',
   inputSchema: {
-    type: 'object', properties: { scanId: { type: 'string', enum: ['SCN-1047'], description: 'Defaults to SCN-1047.' } }, additionalProperties: false,
+    type: 'object', required: ['scanId'], properties: { scanId: { type: 'string', minLength: 1, maxLength: 80 }, cursor: { type: 'string', pattern: '^(0|[1-9][0-9]{0,6})$', maxLength: 7 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 }, severity: { type: 'string', enum: ['critical', 'serious', 'moderate', 'minor'] } }, additionalProperties: false,
   },
-  annotations: { readOnlyHint: true, untrustedContentHint: false },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async (input = {}, options = {}) => {
     assertInvocationActive(options);
-    return listStubbedAccessibilityIssues(input);
+    requireOnlyStubKeys(input, ['scanId', 'cursor', 'limit', 'severity']);
+    const scanId = requireString(input, 'scanId', { maxLength: 80 });
+    if (scanId === undefined) throw new Error('scanId is required.');
+    const cursor = requireString(input, 'cursor', { optional: true, maxLength: 80 });
+    if (cursor !== undefined && !/^(0|[1-9][0-9]{0,6})$/.test(cursor)) throw new Error('cursor must be a non-negative integer offset.');
+    const limit = requireInteger(input, 'limit', { optional: true, min: 1, max: 100 });
+    const severity = requireString(input, 'severity', { optional: true, maxLength: 16 });
+    if (severity !== undefined && !['critical', 'serious', 'moderate', 'minor'].includes(severity)) throw new Error('severity must be a supported impact level.');
+    const query = new URLSearchParams({ ...(cursor === undefined ? {} : { cursor }), ...(limit === undefined ? {} : { limit: String(limit) }), ...(severity === undefined ? {} : { severity }) });
+    const session = await getWebMcpSession(options.signal);
+    return requestApi(`/api/v1/scans/${encodeURIComponent(scanId)}/findings?${query}`, session, { signal: options.signal });
   },
 };
 
 export const createDraftAcrTool: ModelContextTool = {
   name: 'create_draft_acr',
   title: 'Create draft ACR',
-  description: 'Creates the representative Northstar Platform 8.4 draft configuration shown in the supplied easyACR screens. This stub persists no data and never creates a reviewed conformance claim.',
+  description: 'Creates a WCAG 2.2 draft evidence attachment from an automated scan. It does not create a completed ACR, assign VPAT conformance terms, or replace human review.',
   inputSchema: {
-    type: 'object',
+    type: 'object', required: ['scanId', 'template'],
     properties: {
-      scanId: { type: 'string', enum: ['SCN-1048'], description: 'Defaults to the completed 184-page evidence scan.' },
-      edition: { type: 'string', enum: ['VPAT 2.5Rev 508'], description: 'Defaults to the US federal procurement template.' },
-      productName: { type: 'string', enum: ['Northstar Platform 8.4'], description: 'Defaults to the representative product.' },
+      scanId: { type: 'string', minLength: 1, maxLength: 80 },
+      template: { type: 'string', enum: ['WCAG_2_2'] },
     },
     additionalProperties: false,
   },
   annotations: { readOnlyHint: false, untrustedContentHint: false },
   execute: async (input = {}, options = {}) => {
     assertInvocationActive(options);
-    return createStubbedDraftAcr(input);
+    requireOnlyStubKeys(input, ['scanId', 'template']);
+    const scanId = requireString(input, 'scanId', { maxLength: 80 });
+    const template = requireString(input, 'template', { maxLength: 32 });
+    if (scanId === undefined || template === undefined) throw new Error('scanId and template are required.');
+    if (template !== 'WCAG_2_2') throw new Error('template must be WCAG_2_2.');
+    const session = await getWebMcpSession(options.signal);
+    return requestApi(`/api/v1/scans/${encodeURIComponent(scanId)}/draft-evidence`, session, { method: 'POST', signal: options.signal, body: JSON.stringify({ template }) });
   },
 };
 
 export const easyAcrWebMcpTools = [getScanStatusTool, startAccessibilityScanTool, listAccessibilityIssuesTool, createDraftAcrTool] as const;
 
-export async function registerEasyAcrWebMcpTools(target: Document = document, signal?: AbortSignal): Promise<WebMcpRegistrationStatus> {
+export async function registerEasyAcrWebMcpTools(
+  target: Document = document,
+  registration: AbortController = new AbortController(),
+): Promise<WebMcpRegistrationStatus> {
   if (!target.modelContext?.registerTool) return 'unsupported';
 
   try {
-    for (const tool of easyAcrWebMcpTools) await target.modelContext.registerTool(tool, { signal });
+    for (const tool of easyAcrWebMcpTools) await target.modelContext.registerTool(tool, { signal: registration.signal });
     return 'registered';
   } catch (error) {
+    // The WebMCP registration signal unregisters every tool already registered
+    // with it. Treat registration as all-or-nothing rather than exposing a
+    // partial tool set after a later registration fails.
+    registration.abort(error);
     console.warn('easyACR WebMCP tool registration failed.', error);
     return 'failed';
   }

@@ -66,6 +66,12 @@ describe('easyACR WebMCP stubs', () => {
     expect(() => createStubbedDraftAcr({ edition: 'VPAT 2.5Rev EU' })).toThrow('only supports edition');
   });
 
+  it('rejects unknown input properties instead of relying on schema metadata', () => {
+    expect(() => startStubbedAccessibilityScan({ unexpected: true })).toThrow('does not support unexpected');
+    expect(() => listStubbedAccessibilityIssues({ unexpected: true })).toThrow('does not support unexpected');
+    expect(() => createStubbedDraftAcr({ unexpected: true })).toThrow('does not support unexpected');
+  });
+
   it('registers all four tools with appropriate read/write annotations', async () => {
     const registerTool = vi.fn().mockResolvedValue(undefined);
     const target = { modelContext: { registerTool } } as unknown as Document;
@@ -87,10 +93,49 @@ describe('easyACR WebMCP stubs', () => {
     await expect(registerEasyAcrWebMcpTools({} as Document)).resolves.toBe('unsupported');
   });
 
-  it('returns every fixture through its tool callback', async () => {
-    await expect(getScanStatusTool.execute()).resolves.toEqual(getStubbedScanStatus());
-    await expect(startAccessibilityScanTool.execute()).resolves.toEqual(startStubbedAccessibilityScan());
-    await expect(listAccessibilityIssuesTool.execute()).resolves.toEqual(listStubbedAccessibilityIssues());
-    await expect(createDraftAcrTool.execute()).resolves.toEqual(createStubbedDraftAcr());
+  it('aborts the shared registration controller after a partial registration failure', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const registerTool = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('duplicate tool'));
+    const target = { modelContext: { registerTool } } as unknown as Document;
+    const registration = new AbortController();
+
+    await expect(registerEasyAcrWebMcpTools(target, registration)).resolves.toBe('failed');
+    expect(registerTool).toHaveBeenCalledTimes(2);
+    expect(registration.signal.aborted).toBe(true);
+    warning.mockRestore();
+  });
+
+  it('calls the server-authorized scan API through each production tool', async () => {
+    const response = (value: unknown) => ({ ok: true, json: async () => value });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }))
+      .mockResolvedValueOnce(response({ scan: { id: 'scan_1', status: 'completed' } }))
+      .mockResolvedValueOnce(response({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }))
+      .mockResolvedValueOnce(response({ scan: { id: 'scan_2', status: 'queued' } }))
+      .mockResolvedValueOnce(response({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }))
+      .mockResolvedValueOnce(response({ scanId: 'scan_1', findings: [] }))
+      .mockResolvedValueOnce(response({ active: true, webMcpEnabled: true, termsAccepted: true, csrfToken: 'csrf-token' }))
+      .mockResolvedValueOnce(response({ evidence: { scanId: 'scan_1', humanReviewRequired: true } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getScanStatusTool.execute({ scanId: 'scan_1' })).resolves.toEqual({ scan: { id: 'scan_1', status: 'completed' } });
+    await expect(startAccessibilityScanTool.execute({ url: 'https://example.com', pageLimit: 1, authorizationConfirmed: true })).resolves.toEqual({ scan: { id: 'scan_2', status: 'queued' } });
+    await expect(listAccessibilityIssuesTool.execute({ scanId: 'scan_1', cursor: '10', limit: 25, severity: 'serious' })).resolves.toEqual({ scanId: 'scan_1', findings: [] });
+    await expect(createDraftAcrTool.execute({ scanId: 'scan_1', template: 'WCAG_2_2' })).resolves.toEqual({ evidence: { scanId: 'scan_1', humanReviewRequired: true } });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/scans/scan_1', expect.objectContaining({ credentials: 'same-origin', headers: expect.objectContaining({ get: expect.any(Function) }) }));
+    const scanCall = fetchMock.mock.calls.find(([path]) => path === '/api/v1/scans');
+    expect(scanCall?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ url: 'https://example.com', authorizationConfirmed: true, pageLimit: 1 }) });
+    expect((scanCall?.[1] as RequestInit).headers as Headers).toBeInstanceOf(Headers);
+    expect(((scanCall?.[1] as RequestInit).headers as Headers).get('x-csrf-token')).toBe('csrf-token');
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/scans/scan_1/findings?cursor=10&limit=25&severity=serious', expect.objectContaining({ credentials: 'same-origin' }));
+    vi.unstubAllGlobals();
+  });
+
+  it('requires a target-authorization attestation before starting a scan', async () => {
+    await expect(startAccessibilityScanTool.execute({ url: 'https://example.com' })).rejects.toThrow('authorizationConfirmed must be true');
+    await expect(startAccessibilityScanTool.execute({ url: 'https://example.com', authorizationConfirmed: false })).rejects.toThrow('authorizationConfirmed must be true');
   });
 });

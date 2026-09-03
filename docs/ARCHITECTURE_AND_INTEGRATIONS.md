@@ -8,7 +8,7 @@
 
 **Why:** The stack is stable, typed, testable, responsive, themeable, locally runnable, and can migrate to a server-rendered React framework when production routing/auth requirements are chosen. Avoiding a component framework keeps the supplied design-system tokens authoritative. Native controls reduce custom accessibility risk.
 
-**Consequences:** Public pages in this prototype are client-rendered; a production deployment should adopt SSR/SSG for marketing content and route-level data loading. The mock router and in-memory interactions are intentionally simple. Browser/server separation is documented rather than implemented as a backend.
+**Consequences:** Public pages remain client-rendered, so marketing SEO/SSG is a later concern. The production scan path is now implemented as a server API, private Supabase auth/data gateways, a durable Postgres job record, isolated Playwright worker, and controlled egress proxy. Representative dashboard screens are still product-demo UI rather than durable workspace views.
 
 ## Integration boundaries
 
@@ -22,9 +22,15 @@
 | Deadline feed | Display source and last-verified date | Curated authoritative source record and stale-date policy | Human/legal content review |
 | WebMCP | Feature detect, explain tools, surface consent/activity/revocation | Per-call auth, scopes, user/org policy, rate limit, audit | Experimental WebMCP adapter or other client bridge |
 
+## Durable automated evidence
+
+`create_draft_acr` is intentionally named for compatibility with the prototype tool surface, but its production behavior is narrower: it idempotently creates a durable, immutable `automated_draft` evidence artifact tied to the requesting user's completed or partial scan. The artifact snapshots automated counts by severity, scan metadata, the WCAG 2.2 template identifier, and the human-review warning. It does not create an ACR, select VPAT terms, or assert conformance. Finding retrieval applies severity filtering before numeric cursor pagination, so an agent cannot accidentally skip or duplicate a filtered result set.
+
+The application and data gateway perform only pure URL/hostname syntax validation before durable queueing; neither performs a public DNS lookup. The isolated worker and controlled proxy remain responsible for DNS classification, rebinding protection, and connection-time egress enforcement.
+
 ## WebMCP decision
 
-As of September 2, 2026, WebMCP is a [Draft Community Group Report](https://webmachinelearning.github.io/webmcp/), not a stable multi-browser production dependency. The prototype feature-detects `document.modelContext.registerTool()` and registers four same-origin stubs when supported: `get-scan-status`, `start_accessibility_scan`, `list_accessibility_issues`, and `create_draft_acr`. Their deterministic responses are representative fictional data matching the supplied easyACR screens. None performs a network request; the two write-shaped handlers return queued/created responses without starting a crawler or persisting a draft. Production integration still requires server authorization, reviewed specification pinning, privacy/security testing, auditing, and a non-WebMCP fallback.
+As of September 2, 2026, WebMCP is a [Draft Community Group Report](https://webmachinelearning.github.io/webmcp/), not a stable multi-browser production dependency. The public beta feature-detects `document.modelContext.registerTool()` only after the browser holds a Supabase-authenticated, signed same-site scan session with accepted terms. It registers `get-scan-status`, `start_accessibility_scan`, `list_accessibility_issues`, and `create_draft_acr`; each callback calls an API that rechecks the session and CSRF token. Registration shares an abort controller so a failure or page unload unregisters all earlier tools. Findings are marked as untrusted content. The former invite flow is an explicitly enabled local demo harness, not a public access path. This is an automated-evidence beta, not a conformance or ACR-completion service, and still requires specification pinning, auditing, privacy/security testing, and a non-WebMCP fallback before a broader release.
 
 ## VPAT decision
 

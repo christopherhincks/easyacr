@@ -16,3 +16,8 @@ Icon
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
+
+# Local/deployment secrets. Keep the documented template versioned.
+.env
+.env.*
+!.env.example

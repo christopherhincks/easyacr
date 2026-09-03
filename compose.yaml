@@ -1,0 +1,271 @@
+name: easyacr
+
+# Public beta topology:
+# internet -> Caddy -> app -> scanner-egress -> internet
+#
+# The two internal networks have no default route. The app can reach Caddy and
+# the egress proxy, but Caddy cannot reach the proxy; Chromium is therefore
+# unable to bypass scanner-egress directly.
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      EASYACR_PUBLIC_HOST: ${EASYACR_PUBLIC_HOST:?Set the public DNS hostname (for example easyacr.example.com)}
+      ACME_EMAIL: ${ACME_EMAIL:?Set the ACME certificate contact email}
+      SUPABASE_HOST: ${SUPABASE_HOST:?Set the Supabase project hostname (for example project-ref.supabase.co)}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+      - app_front
+    depends_on:
+      app:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Caddy is the only public edge service and needs this sole capability to
+    # bind HTTPS/HTTP inside the container after all other capabilities drop.
+    cap_add:
+      - NET_BIND_SERVICE
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL:?Set the Supabase project URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Set the Supabase publishable key}
+    restart: unless-stopped
+    # Keep this at one replica: sessions and scan jobs are intentionally in
+    # memory in this MVP, so replicas do not share state.
+    environment:
+      NODE_ENV: production
+      PORT: "4174"
+      SESSION_HMAC_SECRET: ${SESSION_HMAC_SECRET:?Set a high-entropy session HMAC secret}
+      # Safe only because Caddy overwrites incoming X-Forwarded-For and this
+      # app port is private on app_front.
+      TRUST_PROXY_IP: "true"
+      # Supabase tokens are verified through the private auth gateway. The app
+      # itself retains no general internet route, so Chromium cannot bypass the
+      # scanner egress boundary.
+      SUPABASE_AUTH_GATEWAY: http://auth-gateway:4180
+      # Used only to permit the browser's authenticated Supabase connection in
+      # the app's direct-origin CSP. It is a hostname, never a credential.
+      SUPABASE_HOST: ${SUPABASE_HOST:?Set the Supabase project hostname (for example project-ref.supabase.co)}
+      AUTH_GATEWAY_TOKEN: ${AUTH_GATEWAY_TOKEN:?Set a high-entropy auth gateway token}
+      DATA_GATEWAY_URL: http://data-gateway:4181
+      DATA_GATEWAY_TOKEN: ${DATA_GATEWAY_TOKEN:?Set a high-entropy data gateway token}
+    networks:
+      - app_front
+      - auth_control
+      - data_control
+    depends_on:
+      auth-gateway:
+        condition: service_healthy
+      data-gateway:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # A single scan browser is intentionally limited by the application too.
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4174/healthz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # The only service allowed to reach Supabase. It verifies an incoming bearer
+  # token against /auth/v1/user, then returns only the id and email to app.
+  auth-gateway:
+    build:
+      context: .
+      dockerfile: deploy/auth-gateway.Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "4180"
+      SUPABASE_URL: ${SUPABASE_URL:?Set the Supabase project URL}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Set the Supabase publishable key}
+      AUTH_GATEWAY_TOKEN: ${AUTH_GATEWAY_TOKEN:?Set a high-entropy auth gateway token}
+    networks:
+      - auth_control
+      - auth_egress
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4180/healthz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # The only service holding the Supabase service-role key. It provides a
+  # deliberately narrow persistence API to app and scanner-worker.
+  data-gateway:
+    build:
+      context: .
+      dockerfile: deploy/data-gateway.Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "4181"
+      SUPABASE_URL: ${SUPABASE_URL:?Set the Supabase project URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?Set the Supabase service-role key}
+      DATA_GATEWAY_TOKEN: ${DATA_GATEWAY_TOKEN:?Set a high-entropy data gateway token}
+    networks:
+      - data_control
+      - data_egress
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4181/healthz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # This is the only service with an internet route available to scanner work.
+  # It resolves and blocks unsafe destinations itself; app-level URL checks are
+  # defence in depth, not the network security boundary.
+  scanner-egress:
+    build:
+      context: .
+      dockerfile: deploy/scanner-proxy.Dockerfile
+    restart: unless-stopped
+    networks:
+      - scanner_control
+      - scanner_egress
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3128"
+      PROXY_AUTH_TOKEN: ${PROXY_AUTH_TOKEN:?Set a high-entropy scanner proxy token}
+      # Per-tunnel limits contain slow or unexpectedly large target responses.
+      MAX_TUNNEL_MS: "120000"
+      MAX_TUNNEL_BYTES: "16777216"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    cpus: "0.25"
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3128/healthz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Chromium runs only here, without public ingress or a direct internet
+  # route. It claims durable jobs through data-gateway and can reach websites
+  # only through scanner-egress.
+  scanner-worker:
+    build:
+      context: .
+      dockerfile: deploy/scanner-worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      SCAN_EGRESS_PROXY: http://easyacr:${PROXY_AUTH_TOKEN:?Set a high-entropy scanner proxy token}@scanner-egress:3128
+      DATA_GATEWAY_URL: http://data-gateway:4181
+      DATA_GATEWAY_TOKEN: ${DATA_GATEWAY_TOKEN:?Set a high-entropy data gateway token}
+      HEALTH_PORT: "4175"
+    networks:
+      - scanner_control
+      - data_control
+    depends_on:
+      scanner-egress:
+        condition: service_healthy
+      data-gateway:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    # Chromium's renderer processes need more headroom than the proxy; keep
+    # the total bounded so one hostile target cannot exhaust the host.
+    cpus: "1.00"
+    mem_limit: 768m
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4175/healthz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+networks:
+  # The only externally published listener is Caddy. Do not add app or proxy
+  # ports here.
+  edge:
+    name: easyacr_edge
+  # Containers on this network have no default route to the internet.
+  app_front:
+    name: easyacr_app_front
+    internal: true
+  # This is the only path from the app process to scanner-egress. Caddy is not
+  # attached, and the proxy independently requires CONNECT authentication.
+  scanner_control:
+    name: easyacr_scanner_control
+    internal: true
+  # App can reach only this verifier, while the verifier alone gets a default
+  # route for Supabase's HTTPS API.
+  auth_control:
+    name: easyacr_auth_control
+    internal: true
+  # Attach only scanner-egress. Do not attach app or Caddy.
+  scanner_egress:
+    name: easyacr_scanner_egress
+  auth_egress:
+    name: easyacr_auth_egress
+  data_control:
+    name: easyacr_data_control
+    internal: true
+  data_egress:
+    name: easyacr_data_egress
+
+volumes:
+  caddy_data:
+  caddy_config:

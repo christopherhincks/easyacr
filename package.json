@@ -5,16 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "start": "node server/index.mjs",
+    "start:beta": "pnpm build && node server/index.mjs",
     "build": "tsc -b && vite build",
     "export:screens": "node scripts/generate-svgs.mjs",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
-    "test": "vitest run src",
+    "test": "vitest run src && node --test server/index.test.mjs data-gateway/index.test.mjs scanner-proxy/index.test.mjs scanner-worker/index.test.mjs",
     "test:a11y": "playwright test tests/accessibility.spec.ts",
     "test:routes": "playwright test tests/routes.spec.ts"
   },
   "dependencies": {
     "@axe-core/playwright": "^4.10.2",
+    "@supabase/supabase-js": "2.112.4",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

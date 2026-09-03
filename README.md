@@ -1,8 +1,8 @@
-# easyACR visual prototype
+# easyACR public-scan beta
 
-easyACR is a responsive, role-aware SaaS interface prototype for website accessibility scans, evidence review, scheduled scans, draft Accessibility Conformance Reports (ACRs), and experimental WebMCP access.
+easyACR is a public-scan beta for agent-assisted automated accessibility evidence. The shipped public surface is deliberately small: the landing page, WebMCP tools, session-visible scans, and legal notices.
 
-The prototype is intentionally explicit that automated testing cannot certify accessibility conformance. Generated reports are always called **draft ACRs**, incomplete evidence is **Needs review**, and a human-review step gates reviewed export.
+The beta is intentionally explicit that automated testing cannot certify accessibility conformance. It produces automated findings and a WCAG 2.2 draft evidence attachment, never a completed ACR, certification, or legal conclusion.
 
 ## Run locally
 
@@ -13,7 +13,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://127.0.0.1:4173`. Use the “Demo role” selector in the application sidebar to inspect visitor, non-subscriber, trial, paid-member, and organization-administrator states. External services are replaceable mock adapters; the live browser integration registers four deterministic WebMCP stubs: `get-scan-status`, `start_accessibility_scan`, `list_accessibility_issues`, and `create_draft_acr`. No paid account or cloud credential is required.
+Build and run the same-origin UI/API service with a controlled egress proxy and beta-session secrets. See [`server/README.md`](server/README.md). A user first enables a time-limited beta session in the browser; a compatible agent can then discover four WebMCP tools to start a capped public HTTPS scan, poll status, read untrusted findings, and create a WCAG 2.2 draft evidence attachment.
 
 ## Verification
 
@@ -28,10 +28,16 @@ pnpm test:a11y
 
 The Playwright checks expect the app at `http://127.0.0.1:4173`; the configuration starts the preview server automatically after a build.
 
+## Evaluation materials
+
+- [Judge quickstart](JUDGING.md) — supported WebMCP and browser-fallback flow.
+- [90-second demo runbook](docs/DEMO_RUNBOOK.md) — a safe, reproducible recording path.
+- [Dated WebMCP build note](docs/HACKATHON_BUILD_NOTES.md) — scope of the challenge extension.
+- [Judge-readiness specification](docs/SDD_JUDGE_READINESS.md) — requirements, critical review, and acceptance checks.
+
 ## Project map
 
-- `src/App.tsx` — route-aware interface and complete prototype flows.
-- `src/domain.ts` — centralized entitlements, draft pricing, representative data, and adapter boundaries.
+- `src/App.tsx` — route-aware public-beta interface.
 - `src/styles.css` — Brand → Alias → Mapped → Responsive design-token implementation.
 - `docs/` — product, flows, routes, roles, architecture, integrations, security, privacy, and validation notes.
 - `design/screens/` — individual editable SVG compositions and screen index.
@@ -40,8 +46,8 @@ The Playwright checks expect the app at `http://127.0.0.1:4173`; the configurati
 
 ## Important prototype boundaries
 
-- Authentication, billing, scanning, scheduling, ACR generation, and deadlines are mock adapters. WebMCP feature-detects the current draft API and registers four same-origin stubs when supported. The start-scan and create-draft tools return write-shaped responses but do not run a crawler or persist data.
-- Credentials are never stored in fixtures or local persistence. Protected-scan fields are transient and are cleared at submission in the intended server flow.
+- The public beta has no sign-up, password, billing, organization, scheduling, completed-ACR, or authenticated-target workflow. Deferred routes show an unavailable page rather than representative data.
+- Hosted deployments can use configured Supabase sign-in; local operator testing can use the invite compatibility path. Both accept only public HTTPS targets, require a controlled egress proxy, and cap same-origin scans at ten pages.
+- Credentials are not accepted or stored.
 - Production URL submission must be revalidated server-side before and after DNS resolution and redirects.
-- Pricing and plan limits are draft assumptions, centralized in `src/domain.ts`.
 - This prototype is not legal advice, a compliance claim, or an accessibility certification.

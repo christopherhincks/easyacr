@@ -1,0 +1,36 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm test:routes
+      - run: pnpm test:a11y
+      - name: Validate deployment topology
+        run: >-
+          env EASYACR_PUBLIC_HOST=easyacr.example.test ACME_EMAIL=ops@example.test
+          SUPABASE_URL=https://project.supabase.co SUPABASE_HOST=project.supabase.co
+          SUPABASE_PUBLISHABLE_KEY=ci-placeholder SUPABASE_SERVICE_ROLE_KEY=ci-placeholder
+          SESSION_HMAC_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          AUTH_GATEWAY_TOKEN=${{ github.sha }}${{ github.sha }}
+          DATA_GATEWAY_TOKEN=${{ github.sha }}${{ github.sha }}
+          PROXY_AUTH_TOKEN=${{ github.sha }}${{ github.sha }}
+          docker compose config --quiet
